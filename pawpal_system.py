@@ -132,6 +132,30 @@ class Owner:
 			tasks = [t for t in tasks if t.active == active]
 		return tasks
 
+	def filter_tasks(self, pet_name: Optional[str] = None, completed: Optional[bool] = None) -> List["Task"]:
+		"""Filter tasks by pet name (case-insensitive exact match) and completion status.
+
+		- `pet_name`: if provided, only tasks belonging to pets with this name are returned.
+		- `completed`: if True, only tasks with `last_performed` set are returned; if False, only tasks without `last_performed`.
+		If a filter is None it is not applied.
+		"""
+		tasks = self.get_all_tasks()
+		if pet_name is not None:
+			matched_pet_ids = [p.id for p in self.pets if p.name and p.name.lower() == pet_name.lower()]
+			if matched_pet_ids:
+				tasks = [t for t in tasks if t.pet_id in matched_pet_ids]
+			else:
+				# no pets match the name -> return empty
+				return []
+
+		if completed is not None:
+			if completed:
+				tasks = [t for t in tasks if t.last_performed is not None]
+			else:
+				tasks = [t for t in tasks if t.last_performed is None]
+
+		return tasks
+
 
 @dataclass
 class Task:
