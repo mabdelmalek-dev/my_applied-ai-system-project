@@ -219,3 +219,44 @@ b. What you would improve
 c. Key takeaway
 
 - AI speeds up scaffolding, but human-led design, clear tests, and simple APIs keep the system reliable.
+
+---
+
+## Challenge 5 Prompt Comparison
+
+Chosen algorithmic task: rescheduling weekly recurring tasks when a conflict or owner unavailability occurs.
+
+Goal: produce a modular Python function that given an `Owner`, a `Task` (with recurrence), and a date range, finds alternative slots for the next N occurrences respecting availability, task windows, and minimal spacing. The desired output is (a) a clear function with small helper functions, (b) an explanatory comment and complexity notes, and (c) an accompanying unit test.
+
+Prompts prepared (one for each model):
+
+- Prompt A (OpenAI / GPT-style):
+
+```
+You are a Python engineer. Write a modular, well-documented Python function `reschedule_weekly_task(owner, task, start_date, occurrences, scheduler)` that finds the next `occurrences` available weekly slots for a recurring `task` when the original schedule conflicts with owner availability or other tasks. Use helper functions for: (1) checking owner availability for a datetime range, (2) scanning existing scheduled `TaskInstance`s for overlaps, and (3) generating candidate weekly slots. The function should return a list of `TaskInstance` objects with recommended `scheduled_start` and `scheduled_end`. Include docstrings, edge-case handling (DST and timezone-aware datetimes), and a single pytest unit test demonstrating a conflict and its rescheduling. Keep code Pythonic and modular.
+```
+
+- Prompt B (Anthropic Claude / Google Gemini style):
+
+```
+You are an experienced Python developer focused on clarity and robust APIs. Implement `reschedule_weekly_task(owner, task, from_date, count, planner)` that computes alternative schedule times for the next `count` weekly occurrences if existing occurrences conflict with owner availability or resources. Structure code with small reusable helpers, annotate types, and prefer explicit control flow over clever one-liners. Return a tuple `(rescheduled_instances, reasons)` where `reasons` is a mapping from date->string explaining why the original slot was moved. Provide an example unit test that sets up an owner with a blocking appointment and verifies that the weekly task is shifted to the next available matching weekday/time.
+```
+
+Planned comparison steps:
+
+- Send Prompt A to OpenAI (or your GPT provider) and capture the code output.
+- Send Prompt B to Claude/Gemini and capture the code output.
+- Evaluate both on: modularity (separate helpers), Pythonic style (typing, naming, docstrings), edge-case handling (timezone/DST), and testability (presence of unit test and clear examples).
+- Record findings here (which model produced the more modular/Pythonic solution and why) and include short excerpts and links to the generated code.
+
+Status: comparison completed
+
+### Prompt Comparison (short)
+
+Claude: a runnable, self-contained implementation with helpers and unit tests.
+
+GPT/ChatGPT: a more modular, interface-driven design (uses a `Planner` protocol) that is easier to test and extend.
+
+Recommendation: prefer GPT's modular core for architecture and reuse Claude's runnable example as a default `Planner` implementation if you want a quick working version.
+
+Next: I can (A) run the prompts against live models if you provide API keys, or (B) create a merged, simple implementation here — which do you want?
