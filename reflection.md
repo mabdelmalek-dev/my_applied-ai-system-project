@@ -219,3 +219,16 @@ b. What you would improve
 c. Key takeaway
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+## 5. Reflection
+
+a. What went well
+
+- Implemented a clear, test-covered scheduler and integrated it with a simple Streamlit UI.
+
+b. What you would improve
+
+- Add persistent storage, a conflict-resolution UI, and more recurrence/DST tests.
+
+c. Key takeaway
+
+- AI speeds up scaffolding, but human-led design, clear tests, and simple APIs keep the system reliable.
