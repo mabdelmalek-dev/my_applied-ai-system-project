@@ -304,7 +304,8 @@ class Scheduler:
 		schedule = DailySchedule(date=on_date, owner_id=owner.id)
 		# gather tasks
 		tasks = [t for t in owner.get_all_tasks() if t.active]
-		# sort by priority desc, shorter first as tiebreaker
+		# dynamic greedy selection using scoring and 1-step lookahead
+		# initial sort is not strictly necessary but keeps ordering stable
 		tasks.sort(key=lambda x: (-x.priority, x.duration_minutes or 0))
 
 		# iterate availability windows
@@ -317,26 +318,100 @@ class Scheduler:
 			window_end = datetime.combine(on_date, wend)
 			while current < window_end and tasks:
 				assigned = False
+				candidates = []
 				for i, task in enumerate(tasks):
 					# check fit
 					req = timedelta(minutes=task.duration_minutes)
 					if current + req <= window_end:
-						ti = TaskInstance(task_id=task.id, date=on_date, scheduled_start=current, scheduled_end=current + req)
-						schedule.add_entry(ti)
-						# mark task as scheduled once
-						tasks.pop(i)
-						current = ti.scheduled_end
-						assigned = True
-						break
-				# if no task fits remaining time, break
-				if not assigned:
+						slot = {"start": current, "end": current + req}
+						score = self.score_task_for_slot(task, slot)
+						candidates.append((i, task, req, score))
+				# if no candidates fit remaining time, break
+				if not candidates:
+					break
+				# 1-step lookahead: for each candidate, simulate picking it then best next candidate in remaining time
+				best_choice = None
+				best_value = float("-inf")
+				alpha = 0.0
+				for (i, task, req, score) in candidates:
+					# simulate remaining time after placing this task
+					next_current = current + req
+					remaining_candidates = []
+					for j, oth in enumerate(tasks):
+						if j == i:
+							continue
+						req2 = timedelta(minutes=oth.duration_minutes)
+						if next_current + req2 <= window_end:
+							slot2 = {"start": next_current, "end": next_current + req2}
+							score2 = self.score_task_for_slot(oth, slot2)
+							remaining_candidates.append(score2)
+					# best next score (0 if none)
+					best_next = max(remaining_candidates) if remaining_candidates else 0.0
+					# combine with weighted lookahead (alpha controls lookahead influence)
+					value = score + alpha * best_next
+					if value > best_value:
+						best_value = value
+						best_choice = (i, task, req)
+
+				# commit best choice
+				if best_choice:
+					i, task, req = best_choice
+					ti = TaskInstance(task_id=task.id, date=on_date, scheduled_start=current, scheduled_end=current + req)
+					schedule.add_entry(ti)
+					# mark task as scheduled once
+					tasks.pop(i)
+					current = ti.scheduled_end
+					assigned = True
+				else:
 					break
 
 		return schedule
 
 	def score_task_for_slot(self, task: Task, slot: Dict[str, datetime]) -> float:
-		"""Return a numeric score representing how well a task fits a slot."""
-		raise NotImplementedError
+		"""Return a numeric score representing how well a task fits a slot.
+
+		Scoring components (linear combination):
+		- priority (higher better)
+		- recency penalty (prefer tasks that haven't run recently)
+		- duration penalty (prefer shorter tasks slightly)
+		- time-window fit bonus (prefer tasks whose earliest/latest match the slot)
+		"""
+		score = 0.0
+		# priority weight (normalized)
+		priority_weight = 1.0
+		score += priority_weight * float(task.priority or 0)
+
+		# recency: prefer tasks that haven't been performed recently
+		if task.last_performed:
+			delta_days = (datetime.now(timezone.utc) - task.last_performed).total_seconds() / 86400.0
+			recency_score = 1.0 / (1.0 + delta_days)
+		else:
+			# never performed gets a moderate bonus
+			recency_score = 1.0
+		score += 2.0 * recency_score
+
+		# duration penalty: prefer shorter tasks (smaller negative contribution)
+		if task.duration_minutes:
+			score -= 0.01 * float(task.duration_minutes)
+
+		# time-window fit: give bonus if slot lies within earliest/latest
+		slot_start = slot.get("start")
+		slot_end = slot.get("end")
+		if slot_start and slot_end and task.earliest_time and task.latest_time:
+			# convert to today's datetimes for comparison
+			try:
+				es = datetime.combine(slot_start.date(), task.earliest_time)
+				le = datetime.combine(slot_start.date(), task.latest_time)
+				if slot_start >= es and slot_end <= le:
+				score += 1.0
+			except Exception:
+				pass
+
+		# small penalty for requires_walker (resource constraint) to be resolved elsewhere
+		if task.requires_walker:
+			score -= 0.5
+
+		return float(score)
 
 	def fit_tasks_into_availability(self) -> DailySchedule:
 		"""Place tasks into available time slots and return a DailySchedule."""
