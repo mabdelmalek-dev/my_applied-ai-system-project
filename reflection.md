@@ -77,19 +77,19 @@ a. Constraints and priorities
 a. Constraints and priorities
 
 - Constraints the scheduler considers:
-	- **Owner availability window:** the owner's free time each day (earliest/latest times) — tasks must fit inside this window.
-	- **Task priority:** an explicit importance level (high/medium/low) used to prefer certain tasks when time is limited.
-	- **Duration:** how long a task takes; shorter tasks fit more flexibly and long tasks block more of the day.
-	- **Earliest/latest time windows per task:** some tasks are only appropriate at certain hours (e.g., morning meds, evening walk).
-	- **Recency (how recently a task was done):** prefer tasks that haven't been done recently to keep routines balanced.
-	- **Pet/resource constraints:** avoid scheduling overlapping tasks for the same pet or the same resource/person (walker) at the same time.
-	- **Recurrence rules:** respect daily/weekly recurrence patterns so repeating tasks reappear automatically.
-	- **Owner preferences:** soft preferences like preferred time-of-day or breaking up long sessions; treated as scoring nudges rather than hard rules.
+	- Owner availability window: the owner's free time each day (earliest/latest times) — tasks must fit inside this window.
+	- Task priority: an explicit importance level (high/medium/low) used to prefer certain tasks when time is limited.
+	- Duration: how long a task takes; shorter tasks fit more flexibly and long tasks block more of the day.
+	- Earliest/latest time windows per task: some tasks are only appropriate at certain hours (e.g., morning meds, evening walk).
+	- Recency (how recently a task was done): prefer tasks that haven't been done recently to keep routines balanced.
+	- Pet/resource constraints: avoid scheduling overlapping tasks for the same pet or the same resource/person (walker) at the same time.
+	- Recurrence rules: respect daily/weekly recurrence patterns so repeating tasks reappear automatically.
+	- Owner preferences: soft preferences like preferred time-of-day or breaking up long sessions; treated as scoring nudges rather than hard rules.
 
 - Why these mattered most and how I prioritized them:
-	- **Primary (hard) constraints:** owner availability and task duration are highest priority because a plan that doesn't fit the owner's day is useless. Time-window constraints per task are also treated as near-hard constraints (e.g., medication times).
-	- **Secondary (scoring) constraints:** priority, recency, and owner preferences are used as scoring signals to choose between feasible tasks. They steer the planner toward better choices without making the solver brittle.
-	- **Safety/resource constraints:** same-pet overlaps and resource conflicts are flagged as warnings and avoided where possible — these protect real-world correctness but are surfaced to the user when manual resolution is helpful.
+	- Primary (hard) constraints: owner availability and task duration are highest priority because a plan that doesn't fit the owner's day is useless. Time-window constraints per task are also treated as near-hard constraints (e.g., medication times).
+	- Secondary (scoring) constraints: priority, recency, and owner preferences are used as scoring signals to choose between feasible tasks. They steer the planner toward better choices without making the solver brittle.
+	- Safety/resource constraints: same-pet overlaps and resource conflicts are flagged as warnings and avoided where possible — these protect real-world correctness but are surfaced to the user when manual resolution is helpful.
 
 This ordering keeps the scheduler simple and explainable: first ensure feasibility (fits in time and obeys required windows), then use human-readable scores (priority, recency, preferences) to pick among feasible tasks. The approach favors predictable behavior and easy manual tuning over opaque global optimization.
 
@@ -100,11 +100,11 @@ b. Tradeoffs
 
 One tradeoff the current scheduler makes is using a fast greedy selection with a tiny (one-step) lookahead instead of solving a global optimization (for example, an integer linear program) that would guarantee an optimal ordering.
 
-- **Tradeoff:** Greedy + 1-step lookahead vs. global optimal planning.
+ - Tradeoff: Greedy + 1-step lookahead vs. global optimal planning.
 
-- **Implication:** The greedy approach is much faster and easier to reason about and test, and it keeps the code simple and interactive for a UI-driven workflow. However, it can miss globally optimal schedules — particularly in edge cases where a lower-priority short task should be deferred to make room for a later high-value task whose placement depends on the first decision.
+ - Implication: The greedy approach is much faster and easier to reason about and test, and it keeps the code simple and interactive for a UI-driven workflow. However, it can miss globally optimal schedules — particularly in edge cases where a lower-priority short task should be deferred to make room for a later high-value task whose placement depends on the first decision.
 
-- **Why this is reasonable:** For a consumer-facing pet-care helper the task set per day is typically small (a handful of tasks), and responsiveness and explainability matter: owners expect quick results and clear reasoning. The greedy heuristic produces useful schedules quickly and lets us expose simple, human-understandable scoring rules (priority, recency, duration, time-window fit). When stronger guarantees are required, the codebase is structured so a future ILP/CP solver can be added as an optional backend for harder cases.
+ - Why this is reasonable: For a consumer-facing pet-care helper the task set per day is typically small (a handful of tasks), and responsiveness and explainability matter: owners expect quick results and clear reasoning. The greedy heuristic produces useful schedules quickly and lets us expose simple, human-understandable scoring rules (priority, recency, duration, time-window fit). When stronger guarantees are required, the codebase is structured so a future ILP/CP solver can be added as an optional backend for harder cases.
 
 Decision about a code simplification suggestion:
 
