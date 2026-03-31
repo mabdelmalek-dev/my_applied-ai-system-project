@@ -477,6 +477,43 @@ class Scheduler:
 
 		return float(score)
 
+	def sort_by_time(self, items: List[Any], time_attr: str = "scheduled_start") -> List[Any]:
+		"""Return a new list sorted by a time attribute.
+
+		- `items` may be `Task`, `TaskInstance`, or dict-like objects.
+		- `time_attr` is the attribute name to look up on each item (e.g. 'scheduled_start', 'earliest_time', or a string like '08:30').
+
+		Supports values that are `datetime`, `time`, or strings in `HH:MM` format.
+		"""
+
+		def to_dt(val):
+			if val is None:
+				return datetime.min
+			if isinstance(val, datetime):
+				return val
+			if isinstance(val, time):
+				return datetime.combine(date.today(), val)
+			if isinstance(val, str):
+				# try HH:MM or HH:MM:SS
+				for fmt in ("%H:%M", "%H:%M:%S"):
+					try:
+						t = datetime.strptime(val, fmt).time()
+						return datetime.combine(date.today(), t)
+					except Exception:
+						continue
+			# fallback
+			return datetime.min
+
+		def extract(item):
+			# dict-like
+			if isinstance(item, dict):
+				val = item.get(time_attr)
+			else:
+				val = getattr(item, time_attr, None)
+			return to_dt(val)
+
+		return sorted(list(items), key=extract)
+
 	def fit_tasks_into_availability(self) -> DailySchedule:
 		"""Place tasks into available time slots and return a DailySchedule."""
 		raise NotImplementedError
