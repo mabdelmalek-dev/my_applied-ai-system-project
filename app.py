@@ -153,9 +153,24 @@ if st.button("Generate schedule"):
     if plan:
         st.success("Schedule generated")
         st.markdown(plan.summarize())
+
+        # Detect conflicts and show lightweight warnings without crashing
+        conflicts = sched.detect_conflicts(plan)
+        if conflicts:
+            st.warning(f"{len(conflicts)} potential conflict(s) detected. Review below.")
+            id_to_title = {t.id: t.title for t in owner.get_all_tasks()}
+            for a, b, reason in conflicts:
+                title_a = id_to_title.get(a.task_id, f"Task {a.task_id}")
+                title_b = id_to_title.get(b.task_id, f"Task {b.task_id}")
+                start_a = a.scheduled_start or "(unscheduled)"
+                start_b = b.scheduled_start or "(unscheduled)"
+                st.warning(f"{reason}: '{title_a}' (task {a.task_id}) and '{title_b}' (task {b.task_id}) — starts {start_a} / {start_b}")
+
+        # Present a sorted table (by scheduled_start) for clarity
+        sorted_entries = sched.sort_by_time(plan.get_today_tasks(), "scheduled_start")
         id_to_title = {t.id: t.title for t in owner.get_all_tasks()}
         rows = []
-        for e in plan.get_today_tasks():
+        for e in sorted_entries:
             rows.append({
                 "task_id": e.task_id,
                 "title": id_to_title.get(e.task_id, "(unknown)"),
@@ -163,6 +178,7 @@ if st.button("Generate schedule"):
                 "end": e.scheduled_end,
                 "status": e.status,
             })
+
         if rows:
             st.table(rows)
         else:
