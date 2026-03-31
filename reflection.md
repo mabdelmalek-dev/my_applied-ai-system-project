@@ -239,24 +239,11 @@ You are a Python engineer. Write a modular, well-documented Python function `res
 - Prompt B (Anthropic Claude / Google Gemini style):
 
 ```
-You are an experienced Python developer focused on clarity and robust APIs. Implement `reschedule_weekly_task(owner, task, from_date, count, planner)` that computes alternative schedule times for the next `count` weekly occurrences if existing occurrences conflict with owner availability or resources. Structure code with small reusable helpers, annotate types, and prefer explicit control flow over clever one-liners. Return a tuple `(rescheduled_instances, reasons)` where `reasons` is a mapping from date->string explaining why the original slot was moved. Provide an example unit test that sets up an owner with a blocking appointment and verifies that the weekly task is shifted to the next available matching weekday/time.
-```
-
-Planned comparison steps:
-
-- Send Prompt A to OpenAI (or your GPT provider) and capture the code output.
-- Send Prompt B to Claude/Gemini and capture the code output.
-- Evaluate both on: modularity (separate helpers), Pythonic style (typing, naming, docstrings), edge-case handling (timezone/DST), and testability (presence of unit test and clear examples).
-- Record findings here (which model produced the more modular/Pythonic solution and why) and include short excerpts and links to the generated code.
-
 Status: comparison completed
-
-### Prompt Comparison (short)
 
 Claude: a runnable, self-contained implementation with helpers and unit tests.
 
 GPT/ChatGPT: a more modular, interface-driven design (uses a `Planner` protocol) that is easier to test and extend.
 
-Recommendation: prefer GPT's modular core for architecture and reuse Claude's runnable example as a default `Planner` implementation if you want a quick working version.
 
-Next: I can (A) run the prompts against live models if you provide API keys, or (B) create a merged, simple implementation here — which do you want?
+
