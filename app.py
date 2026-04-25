@@ -1,6 +1,7 @@
 import streamlit as st
 from pawpal_system import Owner, Pet, Task, Storage
 from agent import build_daily_plan, validate_tasks, rank_tasks, schedule_tasks, explain_plan
+from metrics import evaluate_plan, run_benchmarks
 from datetime import date, time
 import os
 
@@ -260,3 +261,53 @@ if st.button("Generate schedule", type="primary"):
             st.markdown("".join(html), unsafe_allow_html=True)
         else:
             st.info("No tasks could be scheduled within the available time.")
+
+        # ── Performance metrics ───────────────────────────────────────────
+        st.divider()
+        st.markdown("### AI Performance Metrics")
+        st.caption("How well did the planner perform on this plan?")
+        metrics = evaluate_plan(tasks, scheduled, available_minutes)
+
+        m1, m2, m3, m4 = st.columns(4)
+        def _pct(v): return f"{v * 100:.1f}%"
+        def _color(v): return "green" if v >= 0.8 else "orange" if v >= 0.5 else "red"
+
+        m1.metric("Task Coverage",       _pct(metrics["task_coverage"]),
+                  help="% of valid tasks that were scheduled")
+        m2.metric("Time Efficiency",     _pct(metrics["time_efficiency"]),
+                  help="% of available time used")
+        m3.metric("Priority Compliance", _pct(metrics["priority_compliance"]),
+                  help="No high-priority task left out while a lower one was included")
+        m4.metric("Overall Score",       _pct(metrics["overall_score"]),
+                  help="Average of the three metrics above")
+
+st.divider()
+
+# ── Benchmark Tests ───────────────────────────────────────────────────────────
+st.subheader("AI Reliability — Benchmark Tests")
+st.caption("Run predefined scenarios to verify the planner always makes correct decisions.")
+
+if st.button("Run benchmark tests"):
+    results = run_benchmarks()
+    n_pass = sum(1 for r in results if r["passed"])
+    n_fail = len(results) - n_pass
+
+    if n_fail == 0:
+        st.success(f"All {n_pass} benchmarks passed!")
+    else:
+        st.error(f"{n_fail} benchmark(s) failed, {n_pass} passed.")
+
+    for r in results:
+        icon = "✅" if r["passed"] else "❌"
+        with st.expander(f"{icon} {r['name']}", expanded=not r["passed"]):
+            if r["failures"]:
+                for f in r["failures"]:
+                    st.error(f)
+            else:
+                st.write(f"Scheduled: {', '.join(r['scheduled_titles']) or '(none)'}")
+            m = r["metrics"]
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Coverage",    f"{m['task_coverage']*100:.0f}%")
+            c2.metric("Efficiency",  f"{m['time_efficiency']*100:.0f}%")
+            c3.metric("Compliance",  f"{m['priority_compliance']*100:.0f}%")
+            c4.metric("Overall",     f"{m['overall_score']*100:.0f}%")
