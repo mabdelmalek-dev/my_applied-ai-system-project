@@ -98,54 +98,57 @@ st.caption("AI-powered pet care planner — tell the app your day and it builds 
 
 st.markdown("""
 <style>
-@media (max-width: 1100px) { .pawpal-deco { display: none !important; } }
+/* Prevent page-level horizontal scroll */
+html, body { overflow-x: hidden; }
+.main .block-container {
+    max-width: 1300px !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-top: 1rem;
+}
 
+/* Side emoji decorations */
 .pawpal-deco {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    width: calc(50vw - 390px);
-    pointer-events: none;
-    z-index: 0;
-    user-select: none;
-    overflow: hidden;
+    position: fixed; top: 0; bottom: 0;
+    width: calc(50vw - 660px);
 }
 .pawpal-deco-left  { left: 0; }
 .pawpal-deco-right { right: 0; }
-
-.pawpal-deco span {
-    position: absolute;
-    line-height: 1;
+    pointer-events: none; z-index: 0;
+    user-select: none; overflow: hidden;
 }
+.pawpal-deco-left  { left: 0; }
+.pawpal-deco-right { right: 0; }
+.pawpal-deco span  { position: absolute; line-height: 1; }
 </style>
 
 <div class="pawpal-deco pawpal-deco-left">
-  <span style="top:2%;  left:15%; font-size:5.5rem;opacity:0.20; transform:rotate(-12deg)">🐕</span>
-  <span style="top:10%; left:55%; font-size:4.5rem;opacity:0.16; transform:rotate(8deg)">🐾</span>
-  <span style="top:19%; left:22%; font-size:6rem;  opacity:0.18; transform:rotate(-5deg)">🐈</span>
-  <span style="top:28%; left:60%; font-size:5rem;  opacity:0.15; transform:rotate(15deg)">🦮</span>
-  <span style="top:37%; left:8%;  font-size:5.5rem;opacity:0.20; transform:rotate(-10deg)">🐩</span>
-  <span style="top:46%; left:50%; font-size:6rem;  opacity:0.17; transform:rotate(7deg)">🐕‍🦺</span>
-  <span style="top:55%; left:18%; font-size:5rem;  opacity:0.19; transform:rotate(-8deg)">🐶</span>
-  <span style="top:63%; left:58%; font-size:5.5rem;opacity:0.15; transform:rotate(12deg)">🐱</span>
-  <span style="top:72%; left:10%; font-size:6rem;  opacity:0.18; transform:rotate(-14deg)">🐈‍⬛</span>
-  <span style="top:81%; left:48%; font-size:5rem;  opacity:0.16; transform:rotate(6deg)">🐾</span>
-  <span style="top:89%; left:22%; font-size:5.5rem;opacity:0.20; transform:rotate(-9deg)">🐕</span>
-  <span style="top:96%; left:55%; font-size:4.5rem;opacity:0.15; transform:rotate(11deg)">🦮</span>
+  <span style="top:2%;  left:15%; font-size:5.5rem;opacity:0.20;transform:rotate(-12deg)">🐕</span>
+  <span style="top:10%; left:55%; font-size:4.5rem;opacity:0.16;transform:rotate(8deg)">🐾</span>
+  <span style="top:19%; left:22%; font-size:6rem;  opacity:0.18;transform:rotate(-5deg)">🐈</span>
+  <span style="top:28%; left:60%; font-size:5rem;  opacity:0.15;transform:rotate(15deg)">🦮</span>
+  <span style="top:37%; left:8%;  font-size:5.5rem;opacity:0.20;transform:rotate(-10deg)">🐩</span>
+  <span style="top:46%; left:50%; font-size:6rem;  opacity:0.17;transform:rotate(7deg)">🐕‍🦺</span>
+  <span style="top:55%; left:18%; font-size:5rem;  opacity:0.19;transform:rotate(-8deg)">🐶</span>
+  <span style="top:63%; left:58%; font-size:5.5rem;opacity:0.15;transform:rotate(12deg)">🐱</span>
+  <span style="top:72%; left:10%; font-size:6rem;  opacity:0.18;transform:rotate(-14deg)">🐈‍⬛</span>
+  <span style="top:81%; left:48%; font-size:5rem;  opacity:0.16;transform:rotate(6deg)">🐾</span>
+  <span style="top:89%; left:22%; font-size:5.5rem;opacity:0.20;transform:rotate(-9deg)">🐕</span>
+  <span style="top:96%; left:55%; font-size:4.5rem;opacity:0.15;transform:rotate(11deg)">🦮</span>
 </div>
 <div class="pawpal-deco pawpal-deco-right">
-  <span style="top:3%;  left:35%; font-size:5.5rem;opacity:0.18; transform:rotate(10deg)">🐈‍⬛</span>
-  <span style="top:11%; left:8%;  font-size:6rem;  opacity:0.20; transform:rotate(-7deg)">🐕</span>
-  <span style="top:20%; left:50%; font-size:5rem;  opacity:0.16; transform:rotate(13deg)">🐾</span>
-  <span style="top:29%; left:18%; font-size:5.5rem;opacity:0.19; transform:rotate(-11deg)">🐶</span>
-  <span style="top:38%; left:55%; font-size:6rem;  opacity:0.15; transform:rotate(6deg)">🦮</span>
-  <span style="top:47%; left:10%; font-size:5rem;  opacity:0.20; transform:rotate(-9deg)">🐩</span>
-  <span style="top:56%; left:45%; font-size:5.5rem;opacity:0.17; transform:rotate(14deg)">🐈</span>
-  <span style="top:64%; left:20%; font-size:6rem;  opacity:0.18; transform:rotate(-6deg)">🐕‍🦺</span>
-  <span style="top:73%; left:52%; font-size:5rem;  opacity:0.16; transform:rotate(9deg)">🐱</span>
-  <span style="top:82%; left:12%; font-size:5.5rem;opacity:0.20; transform:rotate(-13deg)">🐕</span>
-  <span style="top:90%; left:42%; font-size:6rem;  opacity:0.15; transform:rotate(7deg)">🐾</span>
-  <span style="top:97%; left:18%; font-size:4.5rem;opacity:0.18; transform:rotate(-10deg)">🐈‍⬛</span>
+  <span style="top:3%;  left:35%; font-size:5.5rem;opacity:0.18;transform:rotate(10deg)">🐈‍⬛</span>
+  <span style="top:11%; left:8%;  font-size:6rem;  opacity:0.20;transform:rotate(-7deg)">🐕</span>
+  <span style="top:20%; left:50%; font-size:5rem;  opacity:0.16;transform:rotate(13deg)">🐾</span>
+  <span style="top:29%; left:18%; font-size:5.5rem;opacity:0.19;transform:rotate(-11deg)">🐶</span>
+  <span style="top:38%; left:55%; font-size:6rem;  opacity:0.15;transform:rotate(6deg)">🦮</span>
+  <span style="top:47%; left:10%; font-size:5rem;  opacity:0.20;transform:rotate(-9deg)">🐩</span>
+  <span style="top:56%; left:45%; font-size:5.5rem;opacity:0.17;transform:rotate(14deg)">🐈</span>
+  <span style="top:64%; left:20%; font-size:6rem;  opacity:0.18;transform:rotate(-6deg)">🐕‍🦺</span>
+  <span style="top:73%; left:52%; font-size:5rem;  opacity:0.16;transform:rotate(9deg)">🐱</span>
+  <span style="top:82%; left:12%; font-size:5.5rem;opacity:0.20;transform:rotate(-13deg)">🐕</span>
+  <span style="top:90%; left:42%; font-size:6rem;  opacity:0.15;transform:rotate(7deg)">🐾</span>
+  <span style="top:97%; left:18%; font-size:4.5rem;opacity:0.18;transform:rotate(-10deg)">🐈‍⬛</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -610,7 +613,10 @@ with tab3:
                         "</tr>"
                     )
                 html.append("</table>")
-                st.markdown("".join(html), unsafe_allow_html=True)
+                st.markdown(
+                    "<div style='overflow-x:auto'>" + "".join(html) + "</div>",
+                    unsafe_allow_html=True,
+                )
 
                 if st.session_state.pets and len(st.session_state.pets) > 1:
                     st.markdown("#### Per-pet summary")
