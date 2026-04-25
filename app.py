@@ -1,5 +1,6 @@
 import streamlit as st
 from pawpal_system import Owner, Pet, Task, TaskInstance, Scheduler, Storage
+from agent import PawPalAgent
 from datetime import date, time
 import os
 
@@ -174,80 +175,66 @@ st.subheader("Build Schedule")
 st.caption("This button should call your scheduling logic once you implement it.")
 
 if st.button("Generate schedule"):
-    # Persist or retrieve Owner in session_state
-    def get_owner(name: str) -> Owner:
-        o = st.session_state.get("owner")
-        if not isinstance(o, Owner):
-            st.session_state["owner"] = Owner(name=name)
-        return st.session_state["owner"]
-
     owner = get_owner(owner_name)
-
-    # Ensure a Pet exists for the owner
-    def find_or_create_pet(owner: Owner, name: str, species: str) -> Pet:
-        for p in owner.pets:
-            if p.name == name:
-                return p
-        pet = Pet(name=name, species=species)
-        owner.add_pet(pet)
-        return pet
-
     pet = find_or_create_pet(owner, pet_name, species)
 
-    # Map UI tasks into Task objects attached to the pet
+    # Sync UI task list into the owner's pet tasks
     pri_map = {"low": 1, "medium": 2, "high": 3}
     ui_tasks = st.session_state.get("tasks", [])
     next_id = max((t.id or 0 for t in owner.get_all_tasks()), default=0) + 1
     for t in ui_tasks:
-        exists = any((tt.title == t.get("title") and tt.duration_minutes == int(t.get("duration_minutes", 0))) for tt in pet.get_tasks())
+        exists = any(
+            tt.title == t.get("title") and tt.duration_minutes == int(t.get("duration_minutes", 0))
+            for tt in pet.get_tasks()
+        )
         if exists:
             continue
-        task = Task(id=next_id, pet_id=pet.id, title=t.get("title", ""), duration_minutes=int(t.get("duration_minutes", 0)), priority=pri_map.get(t.get("priority", "medium"), 2), priority_level=t.get("priority", "medium"))
+        task = Task(
+            id=next_id, pet_id=pet.id,
+            title=t.get("title", ""),
+            duration_minutes=int(t.get("duration_minutes", 0)),
+            priority=pri_map.get(t.get("priority", "medium"), 2),
+            priority_level=t.get("priority", "medium"),
+        )
         pet.add_task(task)
         next_id += 1
 
-    # Provide a default availability window if none set
-    if not owner.availability:
-        owner.set_availability([{"start": time(8, 0), "end": time(20, 0)}])
-
-    # Run scheduler
-    sched = Scheduler(date=date.today())
-    sched.run_metadata["owner"] = owner
+    # Run PawPal Agent
+    agent = PawPalAgent(owner)
     try:
-        plan = sched.generate_plan()
+        plan, decisions = agent.run(date.today())
     except Exception as e:
-        st.error(f"Scheduling failed: {e}")
+        st.error(f"Agent failed: {e}")
         plan = None
+        decisions = []
 
-    if plan:
-        st.success("Schedule generated")
+    if plan is not None:
+        n_scheduled = len([d for d in decisions if d.scheduled])
+        st.success(f"Schedule generated — {n_scheduled} task(s) scheduled")
         st.markdown(plan.summarize())
 
-        # Detect conflicts and show lightweight warnings without crashing
+        # Conflict detection
+        sched = Scheduler(date=date.today())
+        sched.run_metadata["owner"] = owner
         conflicts = sched.detect_conflicts(plan)
         if conflicts:
-            st.warning(f"{len(conflicts)} potential conflict(s) detected. Review below.")
             id_to_title = {t.id: t.title for t in owner.get_all_tasks()}
+            st.warning(f"{len(conflicts)} potential conflict(s) detected.")
             for a, b, reason in conflicts:
-                title_a = id_to_title.get(a.task_id, f"Task {a.task_id}")
-                title_b = id_to_title.get(b.task_id, f"Task {b.task_id}")
-                start_a = a.scheduled_start or "(unscheduled)"
-                start_b = b.scheduled_start or "(unscheduled)"
-                st.warning(f"{reason}: '{title_a}' (task {a.task_id}) and '{title_b}' (task {b.task_id}) — starts {start_a} / {start_b}")
+                ta = id_to_title.get(a.task_id, f"Task {a.task_id}")
+                tb = id_to_title.get(b.task_id, f"Task {b.task_id}")
+                st.warning(f"{reason}: '{ta}' and '{tb}'")
 
-        # Present a sorted table (by scheduled_start) for clarity
+        # Schedule table
         sorted_entries = sched.sort_by_time(plan.get_today_tasks(), "scheduled_start")
         id_to_title = {t.id: t.title for t in owner.get_all_tasks()}
         id_to_priority = {t.id: getattr(t, "priority_level", "medium") for t in owner.get_all_tasks()}
         rows = []
+        em = {"high": "🔴", "medium": "🟡", "low": "🟢"}
         for e in sorted_entries:
-            # emoji mapping
-            em = {"high": "🔴", "medium": "🟡", "low": "🟢"}
             plev = id_to_priority.get(e.task_id, "medium")
-            emoji = em.get(plev.lower(), "🟡")
             rows.append({
-                "task_id": e.task_id,
-                "title": f"{emoji} {id_to_title.get(e.task_id, "(unknown)")}",
+                "title": f"{em.get(plev.lower(), '🟡')} {id_to_title.get(e.task_id, '(unknown)')}",
                 "start": e.scheduled_start,
                 "end": e.scheduled_end,
                 "priority": plev.title(),
@@ -255,34 +242,45 @@ if st.button("Generate schedule"):
             })
 
         if rows:
-            # Render a color-coded HTML table for better readability
-            def _render_html_table(rows):
-                # priority colors
-                color_map = {"high": "#ffd6d6", "medium": "#fff4cc", "low": "#ddffdd"}
-                html = ["<table style='border-collapse:collapse;width:100%'>"]
-                # headers
-                html.append("<tr>")
-                for h in ["Task", "Start", "End", "Priority", "Status"]:
-                    html.append(f"<th style='text-align:left;padding:8px;border-bottom:1px solid #ddd'>{h}</th>")
-                html.append("</tr>")
-                for r in rows:
-                    # r: dict with title, start, end, priority, status
-                    p = (r.get("priority") or "medium").lower()
-                    bg = color_map.get(p, "#fff4cc")
-                    title = r.get("title")
-                    start = r.get("start") or "--:--"
-                    end = r.get("end") or "--:--"
-                    status = r.get("status") or "planned"
-                    html.append(f"<tr style='background:{bg}'>")
-                    html.append(f"<td style='padding:8px;border-bottom:1px solid #eee'>{title}</td>")
-                    html.append(f"<td style='padding:8px;border-bottom:1px solid #eee'>{start}</td>")
-                    html.append(f"<td style='padding:8px;border-bottom:1px solid #eee'>{end}</td>")
-                    html.append(f"<td style='padding:8px;border-bottom:1px solid #eee'>{p.title()}</td>")
-                    html.append(f"<td style='padding:8px;border-bottom:1px solid #eee'>{status}</td>")
-                    html.append("</tr>")
-                html.append("</table>")
-                return "".join(html)
-
-            st.markdown(_render_html_table(rows), unsafe_allow_html=True)
+            color_map = {"high": "#ffd6d6", "medium": "#fff4cc", "low": "#ddffdd"}
+            html = ["<table style='border-collapse:collapse;width:100%'><tr>"]
+            for h in ["Task", "Start", "End", "Priority", "Status"]:
+                html.append(f"<th style='text-align:left;padding:8px;border-bottom:1px solid #ddd'>{h}</th>")
+            html.append("</tr>")
+            for r in rows:
+                p = (r.get("priority") or "medium").lower()
+                bg = color_map.get(p, "#fff4cc")
+                html.append(
+                    f"<tr style='background:{bg}'>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['title']}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['start'] or '--:--'}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['end'] or '--:--'}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{p.title()}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['status']}</td>"
+                    "</tr>"
+                )
+            html.append("</table>")
+            st.markdown("".join(html), unsafe_allow_html=True)
         else:
             st.info("No tasks fit into availability for today.")
+
+        # Agent reasoning panel
+        with st.expander("Agent Reasoning", expanded=False):
+            if decisions:
+                st.markdown("**Per-task decisions:**")
+                decision_rows = [
+                    {
+                        "Task": d.task.title,
+                        "Status": "✓ Scheduled" if d.scheduled else "✗ Not scheduled",
+                        "Score": f"{d.score:.2f}",
+                        "Reason": d.reason,
+                    }
+                    for d in decisions
+                ]
+                st.dataframe(decision_rows, use_container_width=True)
+            else:
+                st.info("No tasks were evaluated.")
+
+            st.markdown("**Reasoning trace:**")
+            for line in agent.trace:
+                st.text(line)

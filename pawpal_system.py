@@ -935,14 +935,13 @@ actions.
 		"""
 
 		# convert various time-like values into a numeric timestamp for robust sorting
+		# all types are normalised to date.today() so datetime, time, and str are comparable
 		def to_ts(val):
 			if val is None:
 				return float("-inf")
 			if isinstance(val, datetime):
-				v = val
-				if v.tzinfo is None:
-					v = v.replace(tzinfo=timezone.utc)
-				return v.timestamp()
+				dt = datetime.combine(date.today(), val.time()).replace(tzinfo=timezone.utc)
+				return dt.timestamp()
 			if isinstance(val, time):
 				dt = datetime.combine(date.today(), val)
 				if dt.tzinfo is None:
