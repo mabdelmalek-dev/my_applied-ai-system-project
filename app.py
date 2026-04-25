@@ -1,65 +1,38 @@
 import streamlit as st
-from pawpal_system import Owner, Pet, Task, TaskInstance, Scheduler, Storage
-from agent import PawPalAgent
+from pawpal_system import Owner, Pet, Task, Storage
+from agent import build_daily_plan, validate_tasks, rank_tasks, schedule_tasks, explain_plan
 from datetime import date, time
 import os
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
-
 st.title("🐾 PawPal+")
-
-st.markdown(
-    """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
-"""
-)
-
-with st.expander("Scenario", expanded=True):
-    st.markdown(
-        """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
-"""
-    )
+st.caption("AI-powered pet care planner — enter your tasks and let the agent build the best daily schedule.")
 
 st.divider()
 
-st.subheader("Quick Demo Inputs (UI only)")
-owner_name = st.text_input("Owner name", value="Jordan")
-pet_name = st.text_input("Pet name", value="Mochi")
-species = st.selectbox("Species", ["dog", "cat", "other"])
+# ── Owner / Pet inputs ────────────────────────────────────────────────────────
+st.subheader("Owner & Pet")
+col_o, col_p, col_s = st.columns(3)
+with col_o:
+    owner_name = st.text_input("Owner name", value="Jordan")
+with col_p:
+    pet_name = st.text_input("Pet name", value="Mochi")
+with col_s:
+    species = st.selectbox("Species", ["dog", "cat", "other"])
 
-# Attempt to load persisted owner data on startup
+# Storage + session state
 storage = Storage()
 if "owner" not in st.session_state:
     try:
         loaded = storage.load_owner("data.json")
     except Exception:
         loaded = None
-    if loaded:
-        st.session_state["owner"] = loaded
-    else:
-        st.session_state["owner"] = Owner(name=owner_name)
+    st.session_state["owner"] = loaded if loaded else Owner(name=owner_name)
 
-# Session helpers
+if "tasks" not in st.session_state:
+    st.session_state.tasks = []
+
+
 def get_owner(name: str) -> Owner:
     o = st.session_state.get("owner")
     if not isinstance(o, Owner):
@@ -75,61 +48,72 @@ def find_or_create_pet(owner: Owner, name: str, species: str) -> Pet:
     owner.add_pet(pet)
     return pet
 
-# Add pet UI: call Owner.add_pet when user submits
-if st.button("Add pet"):
+
+if st.button("Save owner / pet"):
     owner = get_owner(owner_name)
-    pet = find_or_create_pet(owner, pet_name, species)
-    # persist owner -> data.json
+    find_or_create_pet(owner, pet_name, species)
     try:
         storage.save_owner(owner, "data.json")
+        st.success(f"Saved — owner: {owner_name}, pet: {pet_name}")
     except Exception as e:
-        st.warning(f"Could not save data: {e}")
-    st.success(f"Added pet: {pet.name}")
+        st.warning(f"Could not save: {e}")
 
-st.markdown("### Tasks")
-st.caption("Add a few tasks. In your final version, these should feed into your scheduler.")
+st.divider()
 
-if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+# ── Task inputs ───────────────────────────────────────────────────────────────
+st.subheader("Tasks")
+st.caption("Each task is an AI decision factor: title, duration, priority, and preferred time of day.")
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
 with col1:
     task_title = st.text_input("Task title", value="Morning walk")
 with col2:
-    duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
+    duration = st.number_input("Duration (min)", min_value=1, max_value=240, value=30)
 with col3:
     priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+with col4:
+    preferred_time = st.selectbox("Preferred time", ["morning", "afternoon", "evening", "any"], index=0)
 
 if st.button("Add task"):
     owner = get_owner(owner_name)
     pet = find_or_create_pet(owner, pet_name, species)
-    # create Task instance and attach to pet
     pri_map = {"low": 1, "medium": 2, "high": 3}
     next_id = max((t.id or 0 for t in owner.get_all_tasks()), default=0) + 1
-    task = Task(id=next_id, pet_id=pet.id, title=task_title, duration_minutes=int(duration), priority=pri_map.get(priority, 2))
-    # attach human-friendly priority level as well
-    task.priority_level = priority
-    pet.add_task(task)
-    # also keep UI-friendly task record in session_state for quick table view
-    st.session_state.tasks.append({"title": task_title, "duration_minutes": int(duration), "priority": priority})
-    # persist owner -> data.json
+    task_obj = Task(
+        id=next_id, pet_id=pet.id,
+        title=task_title,
+        duration_minutes=int(duration),
+        priority=pri_map.get(priority, 2),
+        priority_level=priority,
+    )
+    pet.add_task(task_obj)
+    st.session_state.tasks.append({
+        "title": task_title,
+        "duration_minutes": int(duration),
+        "priority": priority,
+        "preferred_time": preferred_time if preferred_time != "any" else None,
+        "pet": pet_name,
+    })
     try:
         storage.save_owner(owner, "data.json")
     except Exception as e:
-        st.warning(f"Could not save data: {e}")
-    st.success(f"Added task: {task_title} to {pet.name}")
+        st.warning(f"Could not save: {e}")
+    st.success(f"Added: {task_title} ({priority} priority, {duration} min, {preferred_time})")
 
+# Task list with delete
 if st.session_state.tasks:
-    st.write("Current tasks:")
+    st.write("**Current tasks:**")
     for i, task in enumerate(st.session_state.tasks):
-        col_a, col_b, col_c, col_d = st.columns([3, 1, 1, 1])
-        with col_a:
+        ca, cb, cc, cd, ce = st.columns([3, 1, 1, 1, 1])
+        with ca:
             st.write(task["title"])
-        with col_b:
+        with cb:
             st.write(f"{task['duration_minutes']} min")
-        with col_c:
+        with cc:
             st.write(task["priority"])
-        with col_d:
+        with cd:
+            st.write(task.get("preferred_time") or "any")
+        with ce:
             if st.button("Delete", key=f"del_{i}"):
                 owner = get_owner(owner_name)
                 for p in owner.pets:
@@ -145,7 +129,7 @@ if st.session_state.tasks:
 else:
     st.info("No tasks yet. Add one above.")
 
-# Save / Reset buttons
+# Save / Reset
 btn_save, btn_reset = st.columns(2)
 with btn_save:
     if st.button("Save now", use_container_width=True):
@@ -153,11 +137,11 @@ with btn_save:
         try:
             try:
                 backup_path = storage.backup_owner_file("data.json")
-                st.info(f"Backup created: {backup_path}")
+                st.info(f"Backup: {backup_path}")
             except FileNotFoundError:
                 pass
             storage.save_owner(owner, "data.json")
-            st.success("Saved owner data to data.json")
+            st.success("Saved to data.json")
         except Exception as e:
             st.error(f"Save failed: {e}")
 with btn_reset:
@@ -171,116 +155,108 @@ with btn_reset:
 
 st.divider()
 
+# ── Generate Schedule ─────────────────────────────────────────────────────────
 st.subheader("Build Schedule")
-st.caption("This button should call your scheduling logic once you implement it.")
+available_minutes = st.number_input(
+    "Available time today (minutes)", min_value=30, max_value=1440, value=480, step=30
+)
 
-if st.button("Generate schedule"):
-    owner = get_owner(owner_name)
-    pet = find_or_create_pet(owner, pet_name, species)
+if st.button("Generate schedule", type="primary"):
+    tasks = st.session_state.tasks
 
-    # Sync UI task list into the owner's pet tasks
-    pri_map = {"low": 1, "medium": 2, "high": 3}
-    ui_tasks = st.session_state.get("tasks", [])
-    next_id = max((t.id or 0 for t in owner.get_all_tasks()), default=0) + 1
-    for t in ui_tasks:
-        exists = any(
-            tt.title == t.get("title") and tt.duration_minutes == int(t.get("duration_minutes", 0))
-            for tt in pet.get_tasks()
-        )
-        if exists:
-            continue
-        task = Task(
-            id=next_id, pet_id=pet.id,
-            title=t.get("title", ""),
-            duration_minutes=int(t.get("duration_minutes", 0)),
-            priority=pri_map.get(t.get("priority", "medium"), 2),
-            priority_level=t.get("priority", "medium"),
-        )
-        pet.add_task(task)
-        next_id += 1
+    if not tasks:
+        st.warning("Add at least one task before generating a schedule.")
+    else:
+        owner = get_owner(owner_name)
+        pet = find_or_create_pet(owner, pet_name, species)
 
-    # Run PawPal Agent
-    agent = PawPalAgent(owner)
-    try:
-        plan, decisions = agent.run(date.today())
-    except Exception as e:
-        st.error(f"Agent failed: {e}")
-        plan = None
-        decisions = []
+        # ── Step 1: Validate ──────────────────────────────────────────────
+        valid = validate_tasks(tasks)
+        invalid = [t for t in tasks if t not in valid]
 
-    if plan is not None:
-        n_scheduled = len([d for d in decisions if d.scheduled])
-        st.success(f"Schedule generated — {n_scheduled} task(s) scheduled")
-        st.markdown(plan.summarize())
+        with st.expander("Step 1 — Validate tasks", expanded=True):
+            st.write(f"**{len(valid)}** valid task(s) out of {len(tasks)} submitted.")
+            if invalid:
+                st.warning(f"{len(invalid)} task(s) skipped (missing title or zero duration).")
 
-        # Conflict detection
-        sched = Scheduler(date=date.today())
-        sched.run_metadata["owner"] = owner
-        conflicts = sched.detect_conflicts(plan)
-        if conflicts:
-            id_to_title = {t.id: t.title for t in owner.get_all_tasks()}
-            st.warning(f"{len(conflicts)} potential conflict(s) detected.")
-            for a, b, reason in conflicts:
-                ta = id_to_title.get(a.task_id, f"Task {a.task_id}")
-                tb = id_to_title.get(b.task_id, f"Task {b.task_id}")
-                st.warning(f"{reason}: '{ta}' and '{tb}'")
+        # ── Step 2: Rank ──────────────────────────────────────────────────
+        ranked = rank_tasks(valid, owner, pet)
 
-        # Schedule table
-        sorted_entries = sched.sort_by_time(plan.get_today_tasks(), "scheduled_start")
-        id_to_title = {t.id: t.title for t in owner.get_all_tasks()}
-        id_to_priority = {t.id: getattr(t, "priority_level", "medium") for t in owner.get_all_tasks()}
-        rows = []
-        em = {"high": "🔴", "medium": "🟡", "low": "🟢"}
-        for e in sorted_entries:
-            plev = id_to_priority.get(e.task_id, "medium")
-            rows.append({
-                "title": f"{em.get(plev.lower(), '🟡')} {id_to_title.get(e.task_id, '(unknown)')}",
-                "start": e.scheduled_start,
-                "end": e.scheduled_end,
-                "priority": plev.title(),
-                "status": e.status,
-            })
+        with st.expander("Step 2 — Rank by priority & preferences", expanded=True):
+            st.write("Tasks sorted by score (highest first):")
+            em = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+            rank_rows = [
+                {
+                    "Rank": i + 1,
+                    "Task": t["title"],
+                    "Priority": t.get("priority", "medium"),
+                    "Preferred time": t.get("preferred_time") or "any",
+                    "Score": t["_score"],
+                }
+                for i, t in enumerate(ranked)
+            ]
+            st.dataframe(rank_rows, use_container_width=True, hide_index=True)
 
-        if rows:
+        # ── Step 3: Schedule ──────────────────────────────────────────────
+        scheduled = schedule_tasks(ranked, available_minutes)
+        not_scheduled = [t for t in ranked if t["title"] not in {s["title"] for s in scheduled}]
+        total_used = sum(t["duration_minutes"] for t in scheduled)
+
+        with st.expander("Step 3 — Build daily schedule", expanded=True):
+            st.write(
+                f"**{len(scheduled)}** task(s) scheduled using **{total_used}** of "
+                f"**{available_minutes}** available minutes."
+            )
+            if not_scheduled:
+                st.warning(
+                    f"{len(not_scheduled)} task(s) didn't fit: "
+                    + ", ".join(t["title"] for t in not_scheduled)
+                )
+
+        # ── Step 4: Explain ───────────────────────────────────────────────
+        explanations = explain_plan(scheduled)
+
+        with st.expander("Step 4 — Explain decisions", expanded=True):
+            for explanation in explanations:
+                st.markdown(f"✅ {explanation}")
+            if not_scheduled:
+                for t in not_scheduled:
+                    total_needed = sum(x["duration_minutes"] for x in ranked)
+                    st.markdown(
+                        f"❌ **{t['title']}** was not scheduled because there was not enough "
+                        f"time remaining (needs {t['duration_minutes']} min)."
+                    )
+
+        # ── Final schedule table ──────────────────────────────────────────
+        st.divider()
+        st.markdown("### Final Schedule")
+        if scheduled:
             color_map = {"high": "#ffd6d6", "medium": "#fff4cc", "low": "#ddffdd"}
-            html = ["<table style='border-collapse:collapse;width:100%'><tr>"]
-            for h in ["Task", "Start", "End", "Priority", "Status"]:
-                html.append(f"<th style='text-align:left;padding:8px;border-bottom:1px solid #ddd'>{h}</th>")
-            html.append("</tr>")
-            for r in rows:
-                p = (r.get("priority") or "medium").lower()
+            em = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+            html = [
+                "<table style='border-collapse:collapse;width:100%'><tr>",
+                *[
+                    f"<th style='text-align:left;padding:8px;border-bottom:2px solid #ccc'>{h}</th>"
+                    for h in ["#", "Task", "Duration", "Priority", "Preferred time", "Explanation"]
+                ],
+                "</tr>",
+            ]
+            for i, (task, explanation) in enumerate(zip(scheduled, explanations), start=1):
+                p = (task.get("priority") or "medium").lower()
                 bg = color_map.get(p, "#fff4cc")
+                icon = em.get(p, "🟡")
+                pt = task.get("preferred_time") or "any"
                 html.append(
                     f"<tr style='background:{bg}'>"
-                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['title']}</td>"
-                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['start'] or '--:--'}</td>"
-                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['end'] or '--:--'}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{i}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{icon} {task['title']}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{task['duration_minutes']} min</td>"
                     f"<td style='padding:8px;border-bottom:1px solid #eee'>{p.title()}</td>"
-                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{r['status']}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee'>{pt}</td>"
+                    f"<td style='padding:8px;border-bottom:1px solid #eee;font-style:italic'>{explanation}</td>"
                     "</tr>"
                 )
             html.append("</table>")
             st.markdown("".join(html), unsafe_allow_html=True)
         else:
-            st.info("No tasks fit into availability for today.")
-
-        # Agent reasoning panel
-        with st.expander("Agent Reasoning", expanded=False):
-            if decisions:
-                st.markdown("**Per-task decisions:**")
-                decision_rows = [
-                    {
-                        "Task": d.task.title,
-                        "Status": "✓ Scheduled" if d.scheduled else "✗ Not scheduled",
-                        "Score": f"{d.score:.2f}",
-                        "Reason": d.reason,
-                    }
-                    for d in decisions
-                ]
-                st.dataframe(decision_rows, use_container_width=True)
-            else:
-                st.info("No tasks were evaluated.")
-
-            st.markdown("**Reasoning trace:**")
-            for line in agent.trace:
-                st.text(line)
+            st.info("No tasks could be scheduled within the available time.")

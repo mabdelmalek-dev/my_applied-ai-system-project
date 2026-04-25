@@ -1,157 +1,192 @@
-from datetime import date, time, datetime, timezone, timedelta
-import pytest
+"""
+Tests for the PawPal+ agentic planner.
 
-from pawpal_system import Owner, Pet, Task
-from agent import PawPalAgent
+Each test verifies one decision the planner must make correctly:
+- priority ordering
+- available time limits
+- preferred_time scoring
+- explanation content
+- edge cases
+"""
 
-
-def _owner(tasks_data, avail=None):
-    """Build a minimal Owner + single Pet + tasks fixture."""
-    owner = Owner(id=1, name="Test Owner")
-    owner.set_availability(
-        avail or [{"start": time(8, 0), "end": time(18, 0)}]
-    )
-    pet = Pet(id=1, name="Buddy", species="dog")
-    owner.add_pet(pet)
-    for i, td in enumerate(tasks_data, start=1):
-        t = Task(
-            id=i,
-            pet_id=pet.id,
-            title=td.get("title", f"Task {i}"),
-            duration_minutes=td.get("duration_minutes", 10),
-            priority=td.get("priority", 2),
-            priority_level=td.get("priority_level", "medium"),
-            recurrence_rule=td.get("recurrence_rule"),
-            active=td.get("active", True),
-        )
-        pet.add_task(t)
-    return owner
+from agent import (
+    build_daily_plan,
+    validate_tasks,
+    rank_tasks,
+    schedule_tasks,
+    score_task,
+    explain_task,
+    explain_plan,
+)
 
 
-# ------------------------------------------------------------------
-# Decision coverage
-# ------------------------------------------------------------------
+# ── build_daily_plan (end-to-end) ─────────────────────────────────────────────
 
-def test_decisions_produced_for_every_active_task():
-    owner = _owner([
-        {"title": "Feed", "duration_minutes": 10, "priority_level": "high"},
-        {"title": "Walk", "duration_minutes": 30, "priority_level": "medium"},
-    ])
-    _, decisions = PawPalAgent(owner).run(date.today())
-    assert len(decisions) == 2
-    assert {d.task.title for d in decisions} == {"Feed", "Walk"}
+def test_high_priority_task_comes_first():
+    tasks = [
+        {"title": "Brush fur", "duration_minutes": 10, "priority": "low"},
+        {"title": "Give medicine", "duration_minutes": 5, "priority": "high"},
+    ]
+    plan, explanations = build_daily_plan(None, None, tasks, 30)
+    assert plan[0]["title"] == "Give medicine"
 
 
-def test_inactive_task_excluded_from_decisions():
-    owner = _owner([
-        {"title": "Active", "duration_minutes": 10, "active": True},
-        {"title": "Inactive", "duration_minutes": 10, "active": False},
-    ])
-    _, decisions = PawPalAgent(owner).run(date.today())
-    titles = {d.task.title for d in decisions}
-    assert "Inactive" not in titles
-    assert "Active" in titles
+def test_all_tasks_scheduled_when_time_is_sufficient():
+    tasks = [
+        {"title": "Feed breakfast", "duration_minutes": 10, "priority": "high"},
+        {"title": "Morning walk", "duration_minutes": 30, "priority": "medium"},
+        {"title": "Brush fur", "duration_minutes": 10, "priority": "low"},
+    ]
+    plan, _ = build_daily_plan(None, None, tasks, 60)
+    assert len(plan) == 3
 
 
-def test_empty_task_list_returns_empty_schedule():
-    owner = Owner(id=1, name="No Tasks")
-    pet = Pet(id=1, name="Cat", species="cat")
-    owner.add_pet(pet)
-    owner.set_availability([{"start": time(8, 0), "end": time(18, 0)}])
-    plan, decisions = PawPalAgent(owner).run(date.today())
-    assert decisions == []
-    assert len(plan.entries) == 0
+def test_low_priority_task_dropped_when_time_is_tight():
+    tasks = [
+        {"title": "Give medicine", "duration_minutes": 5, "priority": "high"},
+        {"title": "Play fetch", "duration_minutes": 45, "priority": "low"},
+    ]
+    # only 20 minutes available — Play fetch (45 min) should be dropped
+    plan, _ = build_daily_plan(None, None, tasks, 20)
+    titles = [t["title"] for t in plan]
+    assert "Give medicine" in titles
+    assert "Play fetch" not in titles
 
 
-# ------------------------------------------------------------------
-# Priority and scheduling
-# ------------------------------------------------------------------
-
-def test_high_priority_task_always_scheduled():
-    owner = _owner([
-        {"title": "Low task", "duration_minutes": 10, "priority": 1, "priority_level": "low"},
-        {"title": "High task", "duration_minutes": 10, "priority": 3, "priority_level": "high"},
-    ])
-    _, decisions = PawPalAgent(owner).run(date.today())
-    scheduled_titles = {d.task.title for d in decisions if d.scheduled}
-    assert "High task" in scheduled_titles
+def test_explanations_match_schedule_length():
+    tasks = [
+        {"title": "Feed", "duration_minutes": 10, "priority": "high"},
+        {"title": "Walk", "duration_minutes": 20, "priority": "medium"},
+    ]
+    plan, explanations = build_daily_plan(None, None, tasks, 60)
+    assert len(explanations) == len(plan)
 
 
-def test_task_exceeding_availability_not_scheduled():
-    # 60 min available, task needs 120 min
-    owner = _owner(
-        [{"title": "Too Long", "duration_minutes": 120, "priority_level": "high"}],
-        avail=[{"start": time(8, 0), "end": time(9, 0)}],
-    )
-    _, decisions = PawPalAgent(owner).run(date.today())
-    assert len(decisions) == 1
-    d = decisions[0]
-    assert not d.scheduled
-    assert "availability" in d.reason.lower() or "slot" in d.reason.lower()
+# ── validate_tasks ────────────────────────────────────────────────────────────
+
+def test_validate_removes_task_with_no_title():
+    tasks = [
+        {"title": "", "duration_minutes": 10, "priority": "high"},
+        {"title": "Walk", "duration_minutes": 20, "priority": "medium"},
+    ]
+    valid = validate_tasks(tasks)
+    assert len(valid) == 1
+    assert valid[0]["title"] == "Walk"
 
 
-# ------------------------------------------------------------------
-# Explanations
-# ------------------------------------------------------------------
-
-def test_scheduled_task_reason_includes_time_range():
-    owner = _owner([
-        {"title": "Morning Feed", "duration_minutes": 15, "priority_level": "high"},
-    ])
-    _, decisions = PawPalAgent(owner).run(date.today())
-    scheduled = [d for d in decisions if d.scheduled]
-    assert len(scheduled) == 1
-    assert ":" in scheduled[0].reason  # HH:MM time present
+def test_validate_removes_task_with_zero_duration():
+    tasks = [
+        {"title": "Feed", "duration_minutes": 0, "priority": "high"},
+        {"title": "Walk", "duration_minutes": 15, "priority": "medium"},
+    ]
+    valid = validate_tasks(tasks)
+    assert len(valid) == 1
+    assert valid[0]["title"] == "Walk"
 
 
-def test_unscheduled_task_reason_is_non_empty():
-    owner = _owner(
-        [{"title": "Impossible", "duration_minutes": 999, "priority_level": "low"}],
-        avail=[{"start": time(8, 0), "end": time(8, 30)}],
-    )
-    _, decisions = PawPalAgent(owner).run(date.today())
-    assert decisions[0].reason.strip() != ""
+def test_validate_accepts_all_valid_tasks():
+    tasks = [
+        {"title": "Walk", "duration_minutes": 20, "priority": "high"},
+        {"title": "Feed", "duration_minutes": 10, "priority": "medium"},
+    ]
+    assert len(validate_tasks(tasks)) == 2
 
 
-# ------------------------------------------------------------------
-# Summary and trace
-# ------------------------------------------------------------------
+# ── score_task ────────────────────────────────────────────────────────────────
 
-def test_summary_contains_required_sections():
-    owner = _owner([
-        {"title": "Short", "duration_minutes": 5, "priority_level": "high"},
-        {"title": "Too Long", "duration_minutes": 999, "priority_level": "low"},
-    ], avail=[{"start": time(8, 0), "end": time(8, 30)}])
-    agent = PawPalAgent(owner)
-    agent.run(date.today())
-    summary = agent.summary()
-    assert "SCHEDULED" in summary
-    assert "NOT SCHEDULED" in summary
-    assert "REASONING TRACE" in summary
+def test_high_priority_scores_higher_than_medium():
+    high = score_task({"title": "t", "duration_minutes": 10, "priority": "high"})
+    medium = score_task({"title": "t", "duration_minutes": 10, "priority": "medium"})
+    assert high > medium
 
 
-def test_reasoning_trace_populated_with_all_steps():
-    owner = _owner([{"title": "Walk", "duration_minutes": 20}])
-    agent = PawPalAgent(owner)
-    agent.run(date.today())
-    full_trace = "\n".join(agent.trace)
-    assert "Observe" in full_trace
-    assert "Evaluate" in full_trace
-    assert "Plan" in full_trace
-    assert "Explain" in full_trace
+def test_medium_priority_scores_higher_than_low():
+    medium = score_task({"title": "t", "duration_minutes": 10, "priority": "medium"})
+    low = score_task({"title": "t", "duration_minutes": 10, "priority": "low"})
+    assert medium > low
 
 
-# ------------------------------------------------------------------
-# Availability defaults
-# ------------------------------------------------------------------
+def test_preferred_time_adds_bonus_to_score():
+    without = score_task({"title": "t", "duration_minutes": 10, "priority": "medium"})
+    with_pt = score_task({"title": "t", "duration_minutes": 10, "priority": "medium", "preferred_time": "morning"})
+    assert with_pt > without
 
-def test_default_availability_set_when_missing():
-    owner = Owner(id=1, name="No Avail")
-    pet = Pet(id=1, name="Dog", species="dog")
-    owner.add_pet(pet)
-    pet.add_task(Task(id=1, pet_id=1, title="Feed", duration_minutes=10, priority_level="medium"))
-    # no availability set on owner
-    agent = PawPalAgent(owner)
-    _, decisions = agent.run(date.today())
-    assert len(decisions) == 1
-    assert owner.availability  # agent filled it in
+
+# ── rank_tasks ────────────────────────────────────────────────────────────────
+
+def test_rank_tasks_orders_high_before_low():
+    tasks = [
+        {"title": "Low", "duration_minutes": 10, "priority": "low"},
+        {"title": "High", "duration_minutes": 10, "priority": "high"},
+        {"title": "Medium", "duration_minutes": 10, "priority": "medium"},
+    ]
+    ranked = rank_tasks(tasks)
+    assert ranked[0]["title"] == "High"
+    assert ranked[-1]["title"] == "Low"
+
+
+def test_rank_tasks_attaches_score():
+    tasks = [{"title": "Walk", "duration_minutes": 20, "priority": "high"}]
+    ranked = rank_tasks(tasks)
+    assert "_score" in ranked[0]
+
+
+# ── schedule_tasks ────────────────────────────────────────────────────────────
+
+def test_schedule_respects_available_minutes():
+    ranked = [
+        {"title": "A", "duration_minutes": 30, "_score": 100, "priority": "high"},
+        {"title": "B", "duration_minutes": 30, "_score": 50, "priority": "medium"},
+        {"title": "C", "duration_minutes": 30, "_score": 10, "priority": "low"},
+    ]
+    scheduled = schedule_tasks(ranked, 60)
+    total = sum(t["duration_minutes"] for t in scheduled)
+    assert total <= 60
+
+
+def test_schedule_skips_task_too_long_for_remaining_time():
+    ranked = [
+        {"title": "Short", "duration_minutes": 10, "_score": 100, "priority": "high"},
+        {"title": "Too long", "duration_minutes": 100, "_score": 50, "priority": "medium"},
+    ]
+    scheduled = schedule_tasks(ranked, 30)
+    titles = [t["title"] for t in scheduled]
+    assert "Short" in titles
+    assert "Too long" not in titles
+
+
+# ── explain_task ──────────────────────────────────────────────────────────────
+
+def test_explain_task_mentions_priority():
+    task = {"title": "Walk dog", "duration_minutes": 30, "priority": "high"}
+    explanation = explain_task(task)
+    assert "high" in explanation.lower()
+
+
+def test_explain_task_mentions_duration():
+    task = {"title": "Walk dog", "duration_minutes": 30, "priority": "high"}
+    explanation = explain_task(task)
+    assert "30" in explanation
+
+
+def test_explain_task_mentions_preferred_time_when_set():
+    task = {"title": "Walk dog", "duration_minutes": 30, "priority": "high", "preferred_time": "morning"}
+    explanation = explain_task(task)
+    assert "morning" in explanation.lower()
+
+
+def test_explain_task_no_preferred_time_mention_when_absent():
+    task = {"title": "Feed cat", "duration_minutes": 10, "priority": "medium"}
+    explanation = explain_task(task)
+    assert "morning" not in explanation
+    assert "afternoon" not in explanation
+    assert "evening" not in explanation
+
+
+def test_explain_plan_returns_one_entry_per_task():
+    scheduled = [
+        {"title": "Walk", "duration_minutes": 30, "priority": "high"},
+        {"title": "Feed", "duration_minutes": 10, "priority": "medium"},
+    ]
+    explanations = explain_plan(scheduled)
+    assert len(explanations) == 2
