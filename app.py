@@ -10,6 +10,34 @@ from agent import (
 from metrics import evaluate_plan, run_benchmarks
 from datetime import date, time
 import os
+import re as _re
+
+
+def _time_options(step_minutes: int = 30):
+    """Return a list of time strings in 12-hour AM/PM format at every step_minutes."""
+    opts = []
+    for total in range(0, 24 * 60, step_minutes):
+        h, m = divmod(total, 60)
+        ampm = "AM" if h < 12 else "PM"
+        h12 = h % 12 or 12
+        opts.append(f"{h12}:{m:02d} {ampm}")
+    return opts
+
+
+def _parse_ampm(s: str) -> time:
+    """Convert '8:00 AM' / '12:30 PM' back to a datetime.time object."""
+    m = _re.match(r"(\d+):(\d+)\s*(AM|PM)", s.strip().upper())
+    if not m:
+        return time(8, 0)
+    h, mn, ampm = int(m.group(1)), int(m.group(2)), m.group(3)
+    if ampm == "PM" and h != 12:
+        h += 12
+    if ampm == "AM" and h == 12:
+        h = 0
+    return time(h, mn)
+
+
+_TIME_OPTS = _time_options(30)
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 st.title("🐾 PawPal+")
@@ -52,9 +80,13 @@ st.caption("Tell the app when you are free today. It will only schedule tasks wi
 
 col_ws, col_we = st.columns(2)
 with col_ws:
-    window_start = st.time_input("Available from", value=time(8, 0))
+    ws_label = st.selectbox("Available from", _TIME_OPTS,
+                             index=_TIME_OPTS.index("8:00 AM"))
+    window_start = _parse_ampm(ws_label)
 with col_we:
-    window_end = st.time_input("Available until", value=time(12, 0))
+    we_label = st.selectbox("Available until", _TIME_OPTS,
+                             index=_TIME_OPTS.index("12:00 PM"))
+    window_end = _parse_ampm(we_label)
 
 total_window_min = (window_end.hour * 60 + window_end.minute) - (window_start.hour * 60 + window_start.minute)
 if total_window_min > 0:
@@ -196,7 +228,6 @@ if st.session_state.tasks:
             )
             new_fixed = new_fixed.strip()
             if new_fixed:
-                import re as _re
                 if _re.match(r"^\d{1,2}:\d{2}$", new_fixed):
                     st.session_state.tasks[i]["fixed_start_time"] = new_fixed
                 else:
