@@ -149,25 +149,61 @@ if st.button("Add task", type="primary"):
         label = f"fixed at {fixed_start}" if fixed_start else f"{preferred_time}"
         st.success(f"Added: {task_title} — {priority} priority, {duration} min, {label}")
 
-# Task list
+# Task list with inline editing
 if st.session_state.tasks:
-    st.write("**Your tasks:**")
-    hdr = st.columns([3, 1, 1, 1, 1, 1])
-    for col, label in zip(hdr, ["Task", "Min", "Priority", "Preferred", "Fixed at", ""]):
-        col.markdown(f"**{label}**")
+    st.write("**Your tasks:** *(edit priority, preferred time, or fixed time directly in the row)*")
+
+    hdr = st.columns([3, 1, 2, 2, 2, 1])
+    for col, label in zip(hdr, ["Task", "Min", "Priority", "Preferred time", "Fixed at (HH:MM)", ""]):
+        col.markdown(f"<small><b>{label}</b></small>", unsafe_allow_html=True)
 
     for i, task in enumerate(st.session_state.tasks):
-        ca, cb, cc, cd, ce, cf = st.columns([3, 1, 1, 1, 1, 1])
+        ca, cb, cc, cd, ce, cf = st.columns([3, 1, 2, 2, 2, 1])
+
         with ca:
             st.write(task["title"])
+
         with cb:
             st.write(f"{task['duration_minutes']}")
+
         with cc:
-            st.write(task["priority"])
+            new_prio = st.selectbox(
+                "Priority", ["low", "medium", "high"],
+                index=["low", "medium", "high"].index(task.get("priority", "medium")),
+                key=f"prio_{i}",
+                label_visibility="collapsed",
+            )
+            st.session_state.tasks[i]["priority"] = new_prio
+
         with cd:
-            st.write(task.get("preferred_time") or "any")
+            pt_opts = ["morning", "afternoon", "evening", "anytime"]
+            curr_pt = task.get("preferred_time") or "anytime"
+            new_pt = st.selectbox(
+                "Preferred", pt_opts,
+                index=pt_opts.index(curr_pt),
+                key=f"pt_{i}",
+                label_visibility="collapsed",
+            )
+            st.session_state.tasks[i]["preferred_time"] = new_pt if new_pt != "anytime" else None
+
         with ce:
-            st.write(task.get("fixed_start_time") or "—")
+            curr_fixed = task.get("fixed_start_time") or ""
+            new_fixed = st.text_input(
+                "Fixed", value=curr_fixed,
+                key=f"fxt_{i}",
+                placeholder="e.g. 09:00",
+                label_visibility="collapsed",
+            )
+            new_fixed = new_fixed.strip()
+            if new_fixed:
+                import re as _re
+                if _re.match(r"^\d{1,2}:\d{2}$", new_fixed):
+                    st.session_state.tasks[i]["fixed_start_time"] = new_fixed
+                else:
+                    st.caption("⚠️ use HH:MM")
+            else:
+                st.session_state.tasks[i]["fixed_start_time"] = None
+
         with cf:
             if st.button("✕", key=f"del_{i}"):
                 owner = get_owner(owner_name)
