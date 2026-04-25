@@ -120,25 +120,53 @@ if st.button("Add task"):
 
 if st.session_state.tasks:
     st.write("Current tasks:")
-    st.table(st.session_state.tasks)
+    for i, task in enumerate(st.session_state.tasks):
+        col_a, col_b, col_c, col_d = st.columns([3, 1, 1, 1])
+        with col_a:
+            st.write(task["title"])
+        with col_b:
+            st.write(f"{task['duration_minutes']} min")
+        with col_c:
+            st.write(task["priority"])
+        with col_d:
+            if st.button("Delete", key=f"del_{i}"):
+                owner = get_owner(owner_name)
+                for p in owner.pets:
+                    p.tasks = [t for t in p.tasks if not (
+                        t.title == task["title"] and t.duration_minutes == task["duration_minutes"]
+                    )]
+                st.session_state.tasks.pop(i)
+                try:
+                    storage.save_owner(owner, "data.json")
+                except Exception as e:
+                    st.warning(f"Could not save: {e}")
+                st.rerun()
 else:
     st.info("No tasks yet. Add one above.")
 
-# Save now button for explicit persistence
-if st.button("Save now"):
-    owner = get_owner(owner_name)
-    try:
-        # create a backup first
+# Save / Reset buttons
+btn_save, btn_reset = st.columns(2)
+with btn_save:
+    if st.button("Save now", use_container_width=True):
+        owner = get_owner(owner_name)
         try:
-            backup_path = storage.backup_owner_file("data.json")
-            st.info(f"Backup created: {backup_path}")
-        except FileNotFoundError:
-            # no existing file to backup
-            pass
-        storage.save_owner(owner, "data.json")
-        st.success("Saved owner data to data.json")
-    except Exception as e:
-        st.error(f"Save failed: {e}")
+            try:
+                backup_path = storage.backup_owner_file("data.json")
+                st.info(f"Backup created: {backup_path}")
+            except FileNotFoundError:
+                pass
+            storage.save_owner(owner, "data.json")
+            st.success("Saved owner data to data.json")
+        except Exception as e:
+            st.error(f"Save failed: {e}")
+with btn_reset:
+    if st.button("Reset all data", type="secondary", use_container_width=True):
+        if os.path.exists("data.json"):
+            os.remove("data.json")
+        st.session_state["owner"] = Owner(name=owner_name)
+        st.session_state.tasks = []
+        st.success("All data cleared.")
+        st.rerun()
 
 st.divider()
 
