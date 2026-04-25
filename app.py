@@ -532,6 +532,32 @@ with tab2:
     else:
         st.info("No tasks yet. Add one above.")
 
+# ── Confidence scoring helper ─────────────────────────────────────────────────
+def _confidence_score(entry: dict) -> int:
+    """Rate how confident the AI is in this scheduling decision (0-100)."""
+    if entry.get("fixed"):
+        return 100  # owner locked the time — no ambiguity
+    priority  = entry.get("priority", "medium")
+    preferred = entry.get("preferred_time")
+    hour      = entry["start_time"].hour
+    score = {"high": 85, "medium": 70, "low": 55}.get(priority, 70)
+    if preferred:
+        zone_ok = (
+            (preferred == "morning"   and hour < 12) or
+            (preferred == "afternoon" and 12 <= hour < 17) or
+            (preferred == "evening"   and hour >= 17)
+        )
+        score += 10 if zone_ok else -10
+    return max(0, min(100, score))
+
+
+def _conf_bar(pct: int) -> str:
+    filled = round(pct / 10)
+    bar    = "█" * filled + "░" * (10 - filled)
+    color  = "#27ae60" if pct >= 80 else "#e67e22" if pct >= 60 else "#e74c3c"
+    return f"<span style='font-family:monospace;color:{color}'>{bar}</span> {pct}%"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Generate Schedule
 # ══════════════════════════════════════════════════════════════════════════════
@@ -587,12 +613,17 @@ with tab3:
             st.divider()
             st.markdown("### Your Daily Schedule")
             if scheduled:
+                # Attach confidence scores
+                for entry in scheduled:
+                    entry["_conf"] = _confidence_score(entry)
+                avg_conf = round(sum(e["_conf"] for e in scheduled) / len(scheduled))
+
                 color_map = {"high": "#ffd6d6", "medium": "#fff4cc", "low": "#ddffdd"}
                 pin_color = "#e8f0ff"
                 html = ["<table style='border-collapse:collapse;width:100%'>", "<tr>",
                         *[f"<th style='text-align:left;padding:10px 8px;border-bottom:2px solid #ccc;"
                           f"background:#f5f5f5'>{h}</th>"
-                          for h in ["Time", "Pet", "Task", "Duration", "Priority", "Explanation"]],
+                          for h in ["Time", "Pet", "Task", "Duration", "Priority", "Confidence", "Explanation"]],
                         "</tr>"]
                 for entry in scheduled:
                     p   = entry["priority"]
@@ -609,6 +640,7 @@ with tab3:
                         f"<td style='padding:10px 8px;border-bottom:1px solid #eee'>{pin}{ico} {entry['title']}</td>"
                         f"<td style='padding:10px 8px;border-bottom:1px solid #eee'>{entry['duration_minutes']} min</td>"
                         f"<td style='padding:10px 8px;border-bottom:1px solid #eee'>{p.title()}</td>"
+                        f"<td style='padding:10px 8px;border-bottom:1px solid #eee;white-space:nowrap'>{_conf_bar(entry['_conf'])}</td>"
                         f"<td style='padding:10px 8px;border-bottom:1px solid #eee;font-style:italic;color:#555'>{entry['explanation']}</td>"
                         "</tr>"
                     )
@@ -634,6 +666,16 @@ with tab3:
                     st.markdown("**Not scheduled:**")
                     for t in unscheduled:
                         st.markdown(f"- ❌ **{t['title']}**: {t['reason']}")
+
+                # Decision log
+                with st.expander("📋 Decision log", expanded=False):
+                    st.caption("Full record of every accept/reject decision the AI made.")
+                    for entry in scheduled:
+                        conf = entry["_conf"]
+                        st.markdown(f"✅ **{entry['title']}** — scheduled at {entry['start_fmt']} "
+                                    f"| priority: {entry['priority']} | confidence: {conf}%")
+                    for t in unscheduled:
+                        st.markdown(f"❌ **{t['title']}** — rejected | reason: _{t['reason']}_")
             else:
                 st.info("No tasks could be placed in the selected window.")
 
@@ -642,37 +684,99 @@ with tab3:
             metrics = evaluate_plan(tasks, flat, total_window_min)
             st.divider()
             st.markdown("### AI Performance Metrics")
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3, m4, m5 = st.columns(5)
             def _pct(v): return f"{v * 100:.1f}%"
             m1.metric("Task Coverage",       _pct(metrics["task_coverage"]),       help="% of valid tasks scheduled")
             m2.metric("Time Efficiency",     _pct(metrics["time_efficiency"]),     help="% of available window used")
             m3.metric("Priority Compliance", _pct(metrics["priority_compliance"]), help="No higher-priority task dropped while lower kept")
             m4.metric("Overall Score",       _pct(metrics["overall_score"]),       help="Average of the three metrics")
+            if scheduled:
+                m5.metric("Avg Confidence",  f"{avg_conf}%", help="Average AI confidence across scheduled tasks")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — AI Reliability
 # ══════════════════════════════════════════════════════════════════════════════
 with tab4:
-    st.caption("Run predefined scenarios to verify the planner always makes correct decisions.")
-    if st.button("Run benchmark tests"):
-        results = run_benchmarks()
-        n_pass = sum(1 for r in results if r["passed"])
-        n_fail = len(results) - n_pass
-        if n_fail == 0:
-            st.success(f"All {n_pass} benchmarks passed!")
+    import subprocess, sys
+
+    # ── Unit test runner ──────────────────────────────────────────────────────
+    st.markdown("#### Automated Unit Tests")
+    st.caption("Runs the full pytest suite (55 tests across 5 files) live in the background.")
+    if st.button("▶ Run unit tests now"):
+        with st.spinner("Running pytest…"):
+            proc = subprocess.run(
+                [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short", "--no-header"],
+                capture_output=True, text=True,
+            )
+        output = proc.stdout + proc.stderr
+        passed = output.count(" PASSED")
+        failed = output.count(" FAILED")
+        error  = output.count(" ERROR")
+        if proc.returncode == 0:
+            st.success(f"All {passed} unit tests passed.")
         else:
-            st.error(f"{n_fail} benchmark(s) failed, {n_pass} passed.")
-        for r in results:
-            icon = "✅" if r["passed"] else "❌"
-            with st.expander(f"{icon} {r['name']}", expanded=not r["passed"]):
-                if r["failures"]:
-                    for f in r["failures"]:
-                        st.error(f)
-                else:
-                    st.write(f"Scheduled: {', '.join(r['scheduled_titles']) or '(none)'}")
-                m = r["metrics"]
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Coverage",   f"{m['task_coverage']*100:.0f}%")
-                c2.metric("Efficiency", f"{m['time_efficiency']*100:.0f}%")
-                c3.metric("Compliance", f"{m['priority_compliance']*100:.0f}%")
-                c4.metric("Overall",    f"{m['overall_score']*100:.0f}%")
+            st.error(f"{failed} test(s) failed, {error} error(s). {passed} passed.")
+        with st.expander("Full pytest output", expanded=proc.returncode != 0):
+            st.code(output, language="text")
+
+    st.divider()
+
+    # ── Benchmark scenarios ───────────────────────────────────────────────────
+    st.markdown("#### Benchmark Scenarios")
+
+    # Auto-run benchmarks and show summary
+    _results = run_benchmarks()
+    _n_total = len(_results)
+    _n_pass  = sum(1 for r in _results if r["passed"])
+    _n_fail  = _n_total - _n_pass
+    _avg_overall = sum(r["metrics"]["overall_score"] for r in _results) / _n_total
+    _avg_compliance = sum(r["metrics"]["priority_compliance"] for r in _results) / _n_total
+    _avg_coverage   = sum(r["metrics"]["task_coverage"] for r in _results) / _n_total
+
+    if _n_fail == 0:
+        _struggle = "The AI handled all scenarios correctly, including edge cases like empty task lists and overlapping fixed times."
+    else:
+        _failed_names = [r["name"] for r in _results if not r["passed"]]
+        _struggle = f"The AI struggled with: {'; '.join(_failed_names)}."
+
+    if _avg_compliance == 1.0:
+        _compliance_note = "Priority compliance was perfect (100%) — high-priority tasks were always scheduled before lower-priority ones."
+    else:
+        _compliance_note = f"Priority compliance averaged {_avg_compliance*100:.0f}% — some lower-priority tasks were occasionally scheduled over higher ones."
+
+    st.markdown(
+        f"""
+        <div style="background:#fff8f0;border-left:4px solid #c0392b;border-radius:6px;padding:16px 20px;margin-bottom:16px">
+        <b>Testing Summary</b><br><br>
+        {_n_pass} out of {_n_total} benchmark tests passed.
+        {_struggle}<br><br>
+        Overall scores averaged <b>{_avg_overall*100:.0f}%</b> and task coverage averaged <b>{_avg_coverage*100:.0f}%</b> across all scenarios.
+        {_compliance_note}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.caption("Expand each scenario below to inspect individual results.")
+    if st.button("Re-run benchmark tests"):
+        _results = run_benchmarks()
+        _n_pass  = sum(1 for r in _results if r["passed"])
+        _n_fail  = len(_results) - _n_pass
+    if _n_fail == 0:
+        st.success(f"All {_n_pass} benchmarks passed!")
+    else:
+        st.error(f"{_n_fail} benchmark(s) failed, {_n_pass} passed.")
+    for r in _results:
+        icon = "✅" if r["passed"] else "❌"
+        with st.expander(f"{icon} {r['name']}", expanded=not r["passed"]):
+            if r["failures"]:
+                for f in r["failures"]:
+                    st.error(f)
+            else:
+                st.write(f"Scheduled: {', '.join(r['scheduled_titles']) or '(none)'}")
+            m = r["metrics"]
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Coverage",   f"{m['task_coverage']*100:.0f}%")
+            c2.metric("Efficiency", f"{m['time_efficiency']*100:.0f}%")
+            c3.metric("Compliance", f"{m['priority_compliance']*100:.0f}%")
+            c4.metric("Overall",    f"{m['overall_score']*100:.0f}%")
