@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from datetime import time as _time
 from typing import Any, Dict, List, Optional, Tuple
 
 # ── Scoring constants ──────────────────────────────────────────────────────────
@@ -95,6 +97,176 @@ def explain_task(task: Dict[str, Any]) -> str:
 def explain_plan(schedule: List[Dict[str, Any]]) -> List[str]:
     """Return one explanation string per scheduled task."""
     return [explain_task(t) for t in schedule]
+
+
+# ── Time-slotted daily scheduler ─────────────────────────────────────────────
+
+# Preferred-time zones as (start_minute, end_minute) within the day
+_ZONES = {
+    "morning":   (0,       12 * 60),
+    "afternoon": (12 * 60, 17 * 60),
+    "evening":   (17 * 60, 24 * 60),
+}
+
+
+def _parse_time_str(s: str) -> _time:
+    """Parse '09:00', '9:00 AM', '9:00AM' into a time object."""
+    s = s.strip().upper()
+    m = re.match(r"^(\d{1,2}):(\d{2})$", s)
+    if m:
+        return _time(int(m.group(1)), int(m.group(2)))
+    m = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", s)
+    if m:
+        h, mn, ampm = int(m.group(1)), int(m.group(2)), m.group(3)
+        if ampm == "PM" and h != 12:
+            h += 12
+        if ampm == "AM" and h == 12:
+            h = 0
+        return _time(h, mn)
+    raise ValueError(f"Cannot parse time string: '{s}'")
+
+
+def _t2m(t) -> int:
+    """Convert a time object or 'HH:MM' string to minutes since midnight."""
+    if isinstance(t, str):
+        t = _parse_time_str(t)
+    return t.hour * 60 + t.minute
+
+
+def _m2t(m: int) -> _time:
+    """Convert minutes since midnight to a time object."""
+    return _time(m // 60, m % 60)
+
+
+def _fmt(t: _time) -> str:
+    """Format a time as '8:00 AM' / '12:30 PM'."""
+    h12 = t.hour % 12 or 12
+    ampm = "AM" if t.hour < 12 else "PM"
+    return f"{h12}:{t.minute:02d} {ampm}"
+
+
+def build_daily_schedule(
+    window_start,
+    window_end,
+    tasks: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Build a real time-slotted daily schedule within [window_start, window_end].
+
+    Rules
+    -----
+    - Fixed-time tasks (fixed_start_time set) are locked at their specified time.
+    - Flexible tasks are ranked by priority + preferred_time score, then placed
+      greedily into free slots — morning-preferred tasks fill morning gaps first.
+    - Tasks that cannot fit (window too small, overlap, outside window) go into
+      the returned unscheduled list with a plain-English reason.
+
+    Returns
+    -------
+    (scheduled, unscheduled)
+    Each scheduled entry has: title, start_time, end_time, start_fmt, end_fmt,
+    priority, preferred_time, fixed, duration_minutes, explanation.
+    Each unscheduled entry has all original task fields plus a 'reason' key.
+    """
+    ws = _t2m(window_start)
+    we = _t2m(window_end)
+    window_label = f"{_fmt(_m2t(ws))} – {_fmt(_m2t(we))}"
+
+    valid = validate_tasks(tasks)
+    fixed_tasks = sorted(
+        [t for t in valid if t.get("fixed_start_time")],
+        key=lambda t: _t2m(t["fixed_start_time"]),
+    )
+    flexible_tasks = [t for t in valid if not t.get("fixed_start_time")]
+
+    placed: List[Dict[str, Any]] = []   # internal: {start_min, end_min, ...}
+    unscheduled: List[Dict[str, Any]] = []
+
+    # helper: sorted list of free (start, end) minute gaps
+    def _free_slots():
+        occupied = sorted(placed, key=lambda x: x["start_min"])
+        slots, cursor = [], ws
+        for e in occupied:
+            if cursor < e["start_min"]:
+                slots.append((cursor, e["start_min"]))
+            cursor = max(cursor, e["end_min"])
+        if cursor < we:
+            slots.append((cursor, we))
+        return slots
+
+    # ── Place fixed tasks ──
+    for task in fixed_tasks:
+        fst = _t2m(task["fixed_start_time"])
+        end = fst + task["duration_minutes"]
+        if fst < ws or end > we:
+            unscheduled.append({**task, "reason": f"Fixed time {task['fixed_start_time']} is outside your window ({window_label})."})
+            continue
+        if any(not (end <= e["start_min"] or fst >= e["end_min"]) for e in placed):
+            unscheduled.append({**task, "reason": f"Fixed time {task['fixed_start_time']} overlaps with another task."})
+            continue
+        placed.append({**task, "start_min": fst, "end_min": end, "fixed": True})
+
+    # ── Place flexible tasks (highest score first) ──
+    for task in rank_tasks(flexible_tasks):
+        dur = task["duration_minutes"]
+        preferred = task.get("preferred_time")
+        zone = _ZONES.get(preferred) if preferred else None
+        best = None
+
+        # First pass: try preferred time zone
+        if zone:
+            zs, ze = zone
+            for s, e in _free_slots():
+                overlap_s = max(s, zs)
+                overlap_e = min(e, ze)
+                if overlap_e - overlap_s >= dur:
+                    best = overlap_s
+                    break
+
+        # Second pass: any free slot
+        if best is None:
+            for s, e in _free_slots():
+                if e - s >= dur:
+                    best = s
+                    break
+
+        if best is not None:
+            placed.append({**task, "start_min": best, "end_min": best + dur, "fixed": False})
+        else:
+            unscheduled.append({**task, "reason": f"Not enough free time in the window ({window_label})."})
+
+    # ── Build final result sorted by start time ──
+    placed.sort(key=lambda x: x["start_min"])
+    scheduled = []
+    for e in placed:
+        st = _m2t(e["start_min"])
+        et = _m2t(e["end_min"])
+        priority = (e.get("priority") or "medium").lower()
+        preferred = e.get("preferred_time")
+        fixed = e.get("fixed", False)
+
+        if fixed:
+            expl = f"Fixed at {_fmt(st)} as specified by you."
+        elif preferred:
+            expl = (f"{e['title']} was placed at {_fmt(st)} — {priority} priority, "
+                    f"prefers the {preferred}.")
+        else:
+            expl = f"{e['title']} was placed at {_fmt(st)} — {priority} priority."
+
+        scheduled.append({
+            "title": e["title"],
+            "start_time": st,
+            "end_time": et,
+            "start_fmt": _fmt(st),
+            "end_fmt": _fmt(et),
+            "priority": priority,
+            "preferred_time": preferred,
+            "fixed": fixed,
+            "duration_minutes": e["duration_minutes"],
+            "explanation": expl,
+        })
+
+    return scheduled, unscheduled
 
 
 # ── Main entry-point ──────────────────────────────────────────────────────────
