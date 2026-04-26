@@ -4,7 +4,7 @@
 
 ---
 
-## Original Project (Modules 2)
+## Original Project (Module 2)
 
 This project originated as **PawPal+** in Modules 2 of the AI110 course. The original goal was to build a Python class model (`Owner`, `Pet`, `Task`, `Scheduler`) that could manage pet care tasks, detect scheduling conflicts, and generate a basic daily plan using a priority-based greedy algorithm. The early system supported recurring tasks, same-pet overlap warnings, and a simple scoring function that combined priority, recency, and time-window fit. Module 3 extended it with a Streamlit UI that let users enter owner and pet information, add tasks, and view a generated plan with plain-English explanations.
 
@@ -81,11 +81,11 @@ flowchart TD
 
 **Layer 1 — Input (Streamlit UI):** The owner creates a profile (saved to `owners_db.json`), adds pets, and enters tasks with priority, duration, optional preferred time of day, and optional fixed start time.
 
-**Layer 2 — AI Agent (agent.py):** A four-step agentic pipeline: *validate* (drop malformed tasks) → *rank* (score by priority + preferred-time bonus) → *schedule* (place fixed tasks first, then greedily fill remaining slots with flexible tasks) → *explain* (generate a plain-English sentence per decision). A fifth step computes a **confidence score** (0–100%) for every placed task.
+**Layer 2 — AI Agent (agent.py):** A five-step agentic pipeline: *validate* (drop malformed tasks) → *rank* (score by priority + preferred-time bonus) → *schedule* (place fixed tasks first, then greedily fill remaining slots with flexible tasks) → *explain* (generate a plain-English sentence per decision, augmented with a retrieved care tip) → *confidence score* (0–100% per placed task). A RAG (Retrieval-Augmented Generation) module (`knowledge_base.py`) retrieves the most relevant pet care fact for each task title and appends it to the explanation.
 
 **Layer 3 — Evaluator (metrics.py):** After scheduling, three metrics are computed: task coverage (fraction of tasks placed), time efficiency (fraction of the window used), and priority compliance (no high-priority task skipped while a lower one was kept). An overall score averages them.
 
-**Layer 4 — Testing:** 55 pytest unit tests verify every function in isolation. Six benchmark scenarios test realistic edge cases end-to-end. Both are runnable live inside the app's AI Reliability tab.
+**Layer 4 — Testing:** 55 pytest unit tests verify every function in isolation. Six benchmark scenarios test realistic edge cases end-to-end. A standalone `eval_script.py` runs the full benchmark suite plus four custom spot-check scenarios from the command line. Both are also runnable live inside the app's AI Reliability tab.
 
 ### Component summary
 
@@ -96,9 +96,11 @@ flowchart TD
 | Ranker | `agent.py` | Scores tasks: priority (high=100, medium=50, low=10) + preferred-time bonus |
 | Scheduler | `agent.py` | Places fixed tasks at exact times; fills gaps with flexible tasks by score |
 | Explainer | `agent.py` | One plain-English sentence per scheduled or rejected task |
+| **RAG Knowledge Base** | **`knowledge_base.py`** | **Retrieves the most relevant pet care tip for each task title** |
 | Confidence Scorer | `app.py` | Per-decision certainty rating based on priority and time-zone fit |
 | Evaluator | `metrics.py` | Computes coverage, efficiency, compliance, and overall score |
 | Benchmarks | `metrics.py` | 6 named scenarios that must always pass |
+| **Eval Script** | **`eval_script.py`** | **Standalone CLI harness: benchmarks + 4 custom spot-check scenarios** |
 | Unit Tests | `tests/` | 55 pytest tests covering all core functions and edge cases |
 
 ---

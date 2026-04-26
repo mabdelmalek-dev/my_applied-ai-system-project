@@ -685,6 +685,9 @@ with tab2:
                     icon = "📌" if entry["fixed"] else "✅"
                     pet_label = f" [{entry.get('pet', '')}]" if entry.get("pet") else ""
                     st.markdown(f"{icon}{pet_label} {entry['explanation']}")
+                    tip = entry.get("care_tip")
+                    if tip:
+                        st.caption(f"💡 *Retrieved care tip:* {tip}")
                 for t in unscheduled:
                     st.markdown(f"❌ **{t['title']}** — {t['reason']}")
 
@@ -750,6 +753,9 @@ with tab2:
                         conf = entry["_conf"]
                         st.markdown(f"✅ **{entry['title']}** — scheduled at {entry['start_fmt']} "
                                     f"| priority: {entry['priority']} | confidence: {conf}%")
+                        tip = entry.get("care_tip")
+                        if tip:
+                            st.caption(f"💡 *Care tip:* {tip}")
                     for t in unscheduled:
                         st.markdown(f"❌ **{t['title']}** — rejected | reason: _{t['reason']}_")
             else:

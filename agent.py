@@ -4,6 +4,8 @@ import re
 from datetime import time as _time
 from typing import Any, Dict, List, Optional, Tuple
 
+from knowledge_base import retrieve_tip
+
 # ── Scoring constants ──────────────────────────────────────────────────────────
 _PRIORITY_SCORE = {"high": 100, "medium": 50, "low": 10}
 _PREFERRED_TIME_BONUS = 10   # bonus when a preferred_time is specified
@@ -91,6 +93,11 @@ def explain_task(task: Dict[str, Any]) -> str:
     )
     if preferred:
         reason += f" It is preferred in the {preferred}."
+
+    tip = retrieve_tip(title)
+    if tip:
+        reason += f" 💡 {tip}"
+
     return reason
 
 
@@ -253,6 +260,8 @@ def build_daily_schedule(
         else:
             expl = f"{e['title']} was placed at {_fmt(st)} — {priority} priority."
 
+        tip = retrieve_tip(e["title"])
+
         scheduled.append({
             "title": e["title"],
             "start_time": st,
@@ -264,6 +273,7 @@ def build_daily_schedule(
             "fixed": fixed,
             "duration_minutes": e["duration_minutes"],
             "explanation": expl,
+            "care_tip": tip,
             "pet": e.get("pet"),
         })
 
