@@ -204,6 +204,96 @@ Priority compliance is 100% because the two dropped minutes went to the *lowest*
 
 ---
 
+## Extra Credit Features
+
+### RAG Enhancement — `knowledge_base.py`
+
+The explainer step uses **Retrieval-Augmented Generation (RAG)** to attach a relevant pet care fact to every scheduled task's explanation. Instead of generating text from scratch, the system retrieves a vetted tip from a local knowledge base before producing the final explanation.
+
+**How it works:**
+
+1. `knowledge_base.py` stores 18 entries — each is a `(keywords, tip)` pair covering topics like walks, feeding, medication, grooming, bathing, training, and more.
+2. When `explain_task()` runs, it calls `retrieve_tip(task_title)` which tokenizes the title and counts keyword overlap against every entry.
+3. The entry with the highest overlap score (minimum 1 match) is returned and appended to the explanation.
+4. The retrieved tip also appears as a `care_tip` field on each scheduled entry, displayed in the app's Step 4 expander and Decision Log.
+
+**Example — task titled "Give medicine":**
+> *Give medicine was placed at 9:00 AM — high priority.*
+> 💡 *Always give medication at the same time each day to maintain steady therapeutic levels in the bloodstream.*
+
+**Example — task titled "Morning walk":**
+> *Morning walk was placed at 8:00 AM — high priority, prefers the morning.*
+> 💡 *Dogs need at least 30 minutes of exercise daily to maintain healthy weight and mental stimulation.*
+
+Tasks with no matching keywords (e.g. a vague title like "Misc") receive no tip — the system only attaches information it can actually retrieve, rather than hallucinating a generic response.
+
+---
+
+### Agentic Workflow — `agent.py`
+
+The AI agent follows an explicit five-step pipeline where each step has a single responsibility and passes its output to the next:
+
+```
+validate_tasks  →  rank_tasks  →  build_daily_schedule  →  explain_task (+ RAG)  →  confidence_score
+```
+
+| Step | Function | What it does |
+|---|---|---|
+| 1 | `validate_tasks` | Drops tasks with no title or zero duration |
+| 2 | `rank_tasks` | Scores tasks by priority + preferred-time bonus; sorts high → low |
+| 3 | `build_daily_schedule` | Places fixed tasks first; fills gaps greedily with flexible tasks |
+| 4 | `explain_task` | Generates a plain-English reason per task, augmented with a retrieved care tip |
+| 5 | `_confidence_score` (app.py) | Rates each decision 0–100% based on priority and time-zone fit |
+
+Each step is independently testable (unit tests cover them in isolation), and failures surface at the exact step that caused them rather than in an opaque monolith.
+
+---
+
+### Test Harness / Evaluation Script — `eval_script.py`
+
+A standalone command-line evaluation script that proves the AI planner behaves correctly on predefined scenarios — without needing to open the Streamlit app.
+
+**Run it:**
+```bash
+python eval_script.py
+```
+
+**What it checks:**
+
+*Benchmark report* — reruns all 6 predefined benchmark scenarios from `metrics.py` and prints a structured pass/fail table with coverage, efficiency, compliance, and overall score per scenario.
+
+*Spot-check scenarios* — 4 additional hand-crafted edge cases:
+
+| Scenario | What it verifies |
+|---|---|
+| Fixed task placed at exact time | A task with `fixed_start_time: 09:00` lands at exactly 9:00 AM |
+| High priority wins over low in a tight window | A 30-min high-priority task is scheduled; a 20-min low-priority task is dropped |
+| Morning-preferred task lands before noon | A task with `preferred_time: morning` is placed before 12:00 PM |
+| Overlapping fixed tasks — second is rejected | Two fixed tasks at 9:00 and 9:15 (overlapping) — only the first is accepted |
+
+**Sample output:**
+```
+==============================================================
+  PawPal+ AI Planner — Benchmark Evaluation Report
+==============================================================
+
+  [PASS ✓]  Empty task list
+             Scheduled: (none)
+             Coverage 100%  |  Efficiency 0%  |  Compliance 100%  |  Overall 67%
+  ...
+--------------------------------------------------------------
+  TOTAL:  6/6 passed  |  Avg overall score: 91.2%
+  RESULT: ALL BENCHMARKS PASSED
+==============================================================
+
+  [PASS ✓]  Fixed task placed at exact time
+             Scheduled: Give medicine
+  ...
+  TOTAL: 4/4 spot-checks passed
+```
+
+---
+
 ## Design Decisions
 
 **Why a four-step agentic pipeline instead of one function?**
