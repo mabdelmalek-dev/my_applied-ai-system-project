@@ -108,3 +108,79 @@ What the tests cover:
 Confidence Level: ★★★★☆ (4/5)
 
 Reason: the test suite covers the most common scheduling behaviors and edge cases relevant to the module (sorting, daily recurrence, and simple conflict detection). Further tests for DST transitions, complex recurrence patterns, and larger-scale performance would increase confidence to 5/5.
+
+## System Diagram
+
+The diagram below shows how data flows through PawPal+ from user input to a verified, explained schedule.
+
+```mermaid
+flowchart TD
+    A([👤 Owner Input\nname · pets · tasks · time window]) --> B
+
+    subgraph UI ["🖥️ Streamlit UI  (app.py)"]
+        B[Owner & Pets Tab\nprofile · window · pets]
+        C[Tasks Tab\nadd · edit · assign to pet]
+        D[Generate Schedule Tab]
+        E[AI Reliability Tab]
+    end
+
+    B --> C --> D
+
+    subgraph AGENT ["🤖 AI Agent  (agent.py)"]
+        F[1 · Validator\nvalidate_tasks\ndrop empty / zero-duration]
+        G[2 · Ranker\nrank_tasks\nscore = priority + preferred-time bonus]
+        H[3 · Scheduler\nbuild_daily_schedule\nplace fixed slots → then flexible]
+        I[4 · Explainer\nexplain_plan\nnatural-language reason per task]
+        J[5 · Confidence Scorer\n0–100% per decision\npriority × preferred-time zone]
+        F --> G --> H --> I --> J
+    end
+
+    D --> F
+    J --> K
+
+    subgraph OUTPUT ["📅 Schedule Output"]
+        K[Time-slotted schedule table\nwith confidence bars]
+        L[Decision Log\nevery accept / reject + reason]
+        M[AI Performance Metrics\ncoverage · efficiency · compliance · avg confidence]
+    end
+
+    K --> L --> M
+
+    subgraph EVAL ["📊 Evaluator  (metrics.py)"]
+        N[evaluate_plan\ntask_coverage · time_efficiency\npriority_compliance · overall_score]
+    end
+
+    M --> N
+
+    subgraph TEST ["🧪 Testing Layer"]
+        O[Unit Tests · pytest\n55 tests across 5 files\nvalidation · ranking · scheduling · metrics]
+        P[Benchmark Scenarios\n6 predefined edge cases\nrun_benchmarks]
+        Q[Live Test Runner\nin AI Reliability Tab\npass · fail · full output]
+    end
+
+    E --> Q --> O
+    E --> P
+    N --> P
+
+    subgraph HUMAN ["👁️ Human Evaluation"]
+        R[Owner reviews schedule\nin the UI]
+        S[Developer reviews\nbenchmark failures]
+    end
+
+    K --> R
+    P --> S
+```
+
+### Component summary
+
+| Component | File | Role |
+|---|---|---|
+| Streamlit UI | `app.py` | Input collection, schedule display, test runner |
+| Validator | `agent.py` | Drops tasks with no title or zero duration |
+| Ranker | `agent.py` | Scores tasks by priority + preferred-time bonus |
+| Scheduler | `agent.py` | Places fixed tasks first, then flexible by score |
+| Explainer | `agent.py` | Generates a plain-English reason for each decision |
+| Confidence Scorer | `app.py` | Rates AI certainty per decision (0–100%) |
+| Evaluator | `metrics.py` | Measures coverage, efficiency, and compliance |
+| Benchmarks | `metrics.py` | 6 predefined scenarios that must always pass |
+| Unit Tests | `tests/` | 55 pytest tests covering all core functions |
