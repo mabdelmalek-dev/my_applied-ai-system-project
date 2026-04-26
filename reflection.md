@@ -244,6 +244,7 @@ Status: comparison completed
 Claude: a runnable, self-contained implementation with helpers and unit tests.
 
 GPT/ChatGPT: a more modular, interface-driven design (uses a `Planner` protocol) that is easier to test and extend.
+```
 
 ---
 
