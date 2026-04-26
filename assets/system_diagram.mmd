@@ -1,0 +1,62 @@
+flowchart TD
+    A([👤 Owner Input\nname · pets · tasks · time window]) --> B
+
+    subgraph UI ["🖥️ Streamlit UI  (app.py)"]
+        B[Owner & Pets Tab\nprofile · window · pets]
+        C[Tasks Tab\nadd · edit tasks · 📅 Generate Schedule button]
+        E[AI Reliability Tab]
+    end
+
+    B --> C
+
+    subgraph AGENT ["🤖 AI Agent  (agent.py)"]
+        F[1 · Validator\nvalidate_tasks\ndrop empty / zero-duration]
+        G[2 · Ranker\nrank_tasks\nscore = priority + preferred-time bonus]
+        H[3 · Scheduler\nbuild_daily_schedule\nplace fixed slots → then flexible]
+        I[4 · Explainer\nexplain_task + RAG\nnatural-language reason + care tip]
+        J[5 · Confidence Scorer\n0–100% per decision\npriority × preferred-time zone]
+        F --> G --> H --> I --> J
+    end
+
+    subgraph RAG ["📚 Knowledge Base  (knowledge_base.py)"]
+        KB[retrieve_tip\n18-entry local pet care fact index\nkeyword overlap scoring]
+    end
+
+    C --> F
+    I --> KB
+    KB --> I
+    J --> K
+
+    subgraph OUTPUT ["📅 Schedule Output"]
+        K[Time-slotted schedule table\nwith confidence bars]
+        L[Decision Log\nevery accept / reject + reason + care tip]
+        M[AI Performance Metrics\ncoverage · efficiency · compliance · avg confidence]
+    end
+
+    K --> L --> M
+
+    subgraph EVAL ["📊 Evaluator  (metrics.py)"]
+        N[evaluate_plan\ntask_coverage · time_efficiency\npriority_compliance · overall_score]
+    end
+
+    M --> N
+
+    subgraph TEST ["🧪 Testing Layer"]
+        O[Unit Tests · pytest\n55 tests across 5 files\nvalidation · ranking · scheduling · metrics]
+        P[Benchmark Scenarios\n6 predefined edge cases\nrun_benchmarks]
+        Q[Live Test Runner\nin AI Reliability Tab\npass · fail · full output]
+        R[Eval Script · eval_script.py\nbenchmarks + 4 spot-checks\nstandalone CLI harness]
+    end
+
+    E --> Q --> O
+    E --> P
+    N --> P
+    R --> P
+
+    subgraph HUMAN ["👁️ Human Evaluation"]
+        S[Owner reviews schedule\nin the UI]
+        T[Developer reviews\nbenchmark failures]
+    end
+
+    K --> S
+    P --> T

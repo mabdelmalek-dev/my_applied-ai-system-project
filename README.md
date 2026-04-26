@@ -18,9 +18,17 @@ This project originated as **PawPal+** in Modules 2 of the AI110 course. The ori
 
 ---
 
+## Demo Screenshots
+
+| Owner & Pets | Tasks | AI Reliability |
+|---|---|---|
+| ![Owner & Pets tab](assets/screenshot_owner_pets.png) | ![Tasks tab](assets/screenshot_tasks.png) | ![AI Reliability tab](assets/screenshot_ai_reliability.png) |
+
+---
+
 ## Architecture Overview
 
-The system is organized into four layers that data flows through in sequence:
+The system is organized into four layers that data flows through in sequence. Diagram source: [`assets/system_diagram.mmd`](assets/system_diagram.mmd)
 
 ```mermaid
 flowchart TD
