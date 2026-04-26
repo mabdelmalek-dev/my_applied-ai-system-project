@@ -264,6 +264,7 @@ def build_daily_schedule(
             "fixed": fixed,
             "duration_minutes": e["duration_minutes"],
             "explanation": expl,
+            "pet": e.get("pet"),
         })
 
     return scheduled, unscheduled

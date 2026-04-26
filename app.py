@@ -93,8 +93,33 @@ _TIME_OPTS = _time_options(30)
 # ── Page config ───────────────────────────────────────────────────────────────
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
-st.title("🐾 PawPal+")
-st.caption("AI-powered pet care planner — tell the app your day and it builds the best schedule for your pets.")
+
+st.markdown("""
+<div style="width:100%;border-radius:999px;background:linear-gradient(135deg,#fff8f0 0%,#fde8c8 45%,#f5c07a 100%);border:1.5px solid #e8c49a;box-shadow:0 4px 18px rgba(160,82,45,0.13);margin-bottom:14px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 28px;">
+    <div style="display:flex;align-items:flex-end;gap:4px;">
+      <span style="font-size:3.2rem;">🐕</span>
+      <span style="font-size:1.8rem;opacity:0.5;margin-bottom:4px;">🐾</span>
+      <span style="font-size:2.6rem;">🐈</span>
+    </div>
+    <div style="text-align:center;flex:1;padding:0 16px;">
+      <div style="font-size:2rem;font-weight:900;color:#7B3F1A;letter-spacing:2px;">🐾 PawPal+</div>
+      <div style="font-size:0.75rem;color:#A0522D;margin-top:4px;letter-spacing:1.5px;font-weight:600;text-transform:uppercase;">AI · Pet Care · Daily Planner</div>
+      <div style="margin-top:10px;display:flex;justify-content:center;gap:8px;">
+        <span style="background:#A0522D;color:#fff;border-radius:20px;padding:3px 12px;font-size:0.68rem;font-weight:700;letter-spacing:1px;">SMART</span>
+        <span style="background:#D2691E;color:#fff;border-radius:20px;padding:3px 12px;font-size:0.68rem;font-weight:700;letter-spacing:1px;">EXPLAINABLE</span>
+        <span style="background:#8B4513;color:#fff;border-radius:20px;padding:3px 12px;font-size:0.68rem;font-weight:700;letter-spacing:1px;">RELIABLE</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:4px;">
+      <span style="font-size:2.6rem;">🦮</span>
+      <span style="font-size:1.8rem;opacity:0.5;margin-bottom:4px;">🐾</span>
+      <span style="font-size:3.2rem;">🐩</span>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
 
 st.markdown("""
 <style>
@@ -203,49 +228,85 @@ window_start = _parse_ampm(st.session_state.ws_label)
 window_end   = _parse_ampm(st.session_state.we_label)
 total_window_min = (window_end.hour * 60 + window_end.minute) - (window_start.hour * 60 + window_start.minute)
 
-# ── Red tab styling ───────────────────────────────────────────────────────────
+# ── Theme styling (tabs + buttons) ───────────────────────────────────────────
 st.markdown("""
 <style>
 /* Tab strip */
 .stTabs [data-baseweb="tab-list"] {
     gap: 6px;
-    border-bottom: 3px solid #c0392b;
+    border-bottom: 3px solid #A0522D;
     padding-bottom: 0;
 }
-/* Every tab button */
+/* Every tab button — all same warm cream base */
 .stTabs [data-baseweb="tab"] {
-    background: #fff0f0;
-    border: 2px solid #e74c3c;
+    background: #fdf3e7;
+    border: 2px solid #A0522D;
     border-bottom: none;
     border-radius: 8px 8px 0 0;
-    color: #c0392b;
-    font-weight: 700;
+    color: #7B3F1A;
+    font-weight: 600;
     font-size: 0.92rem;
     padding: 8px 18px;
     transition: background 0.15s, color 0.15s;
 }
-/* Active tab */
+/* Active tab — same background, just a bold bottom accent */
 .stTabs [aria-selected="true"] {
-    background: #c0392b !important;
-    color: #ffffff !important;
-    border-color: #c0392b !important;
+    background: #fdf3e7 !important;
+    color: #7B3F1A !important;
+    border-color: #A0522D !important;
+    border-bottom: 3px solid #A0522D !important;
+    font-weight: 800 !important;
 }
-/* Hover on inactive */
+/* Hover */
 .stTabs [data-baseweb="tab"]:hover {
-    background: #e74c3c !important;
-    color: #ffffff !important;
+    background: #f5e0c8 !important;
+    color: #7B3F1A !important;
+    border-color: #8B4513 !important;
 }
 /* Hide the default underline indicator */
 .stTabs [data-baseweb="tab-highlight"] { background: transparent !important; }
 .stTabs [data-baseweb="tab-border"]    { display: none !important; }
+
+/* ── Buttons — warm golden-brown to match pet emoji palette ── */
+/* All buttons base (secondary style) */
+.stButton > button,
+.stFormSubmitButton > button {
+    background-color: #fdf3e7 !important;
+    border: 1px solid #A0522D !important;
+    color: #7B3F1A !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+}
+.stButton > button:hover,
+.stFormSubmitButton > button:hover {
+    background-color: #f5e0c8 !important;
+    border-color: #8B4513 !important;
+    color: #7B3F1A !important;
+}
+
+/* Primary buttons — must come AFTER the general rule to win */
+.stButton > button[kind="primary"],
+.stFormSubmitButton > button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background-color: #A0522D !important;
+    border-color: #A0522D !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+.stButton > button[kind="primary"]:hover,
+.stFormSubmitButton > button[kind="primary"]:hover,
+button[data-testid="baseButton-primary"]:hover {
+    background-color: #8B4513 !important;
+    border-color: #8B4513 !important;
+    color: #ffffff !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "🐾  Owner & Pets",
     "📋  Tasks",
-    "📅  Generate Schedule",
     "🧪  AI Reliability",
 ])
 
@@ -270,9 +331,26 @@ with tab1:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("+ New owner", use_container_width=True):
             st.session_state.creating_new_owner = True
+            st.session_state.active_owner_name = ""
+            st.session_state.pets = []
+            st.session_state.tasks = []
+            st.session_state.ws_label = "8:00 AM"
+            st.session_state.we_label = "12:00 PM"
+            st.session_state["owner"] = Owner(name="")
             st.rerun()
 
-    # Auto-load on dropdown change
+    # Clear data when placeholder is re-selected after a profile was loaded
+    if owner_choice == _PLACEHOLDER and st.session_state.active_owner_name:
+        st.session_state.active_owner_name = ""
+        st.session_state.pets = []
+        st.session_state.tasks = []
+        st.session_state.ws_label = "8:00 AM"
+        st.session_state.we_label = "12:00 PM"
+        st.session_state["owner"] = Owner(name="")
+        st.session_state.creating_new_owner = False
+        st.rerun()
+
+    # Auto-load on dropdown change to a different existing owner
     if owner_choice != _PLACEHOLDER and owner_choice != st.session_state.active_owner_name:
         data = st.session_state.owners_db.get(owner_choice, {})
         st.session_state.pets   = list(data.get("pets", []))
@@ -532,6 +610,9 @@ with tab2:
     else:
         st.info("No tasks yet. Add one above.")
 
+    # ── Generate Schedule button (bottom of Tasks tab) ────────────────────────
+    st.divider()
+
 # ── Confidence scoring helper ─────────────────────────────────────────────────
 def _confidence_score(entry: dict) -> int:
     """Rate how confident the AI is in this scheduling decision (0-100)."""
@@ -558,14 +639,11 @@ def _conf_bar(pct: int) -> str:
     return f"<span style='font-family:monospace;color:{color}'>{bar}</span> {pct}%"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — Generate Schedule
-# ══════════════════════════════════════════════════════════════════════════════
-with tab3:
-    if st.button("Generate schedule", type="primary"):
+with tab2:
+    if st.button("📅 Generate My Schedule", type="primary"):
         tasks = st.session_state.tasks
         if not tasks:
-            st.warning("Add at least one task in the Tasks tab first.")
+            st.warning("Add at least one task above first.")
         elif not owner_name:
             st.warning("Select an owner in the Owner & Pets tab first.")
         elif total_window_min <= 0:
@@ -613,7 +691,6 @@ with tab3:
             st.divider()
             st.markdown("### Your Daily Schedule")
             if scheduled:
-                # Attach confidence scores
                 for entry in scheduled:
                     entry["_conf"] = _confidence_score(entry)
                 avg_conf = round(sum(e["_conf"] for e in scheduled) / len(scheduled))
@@ -667,7 +744,6 @@ with tab3:
                     for t in unscheduled:
                         st.markdown(f"- ❌ **{t['title']}**: {t['reason']}")
 
-                # Decision log
                 with st.expander("📋 Decision log", expanded=False):
                     st.caption("Full record of every accept/reject decision the AI made.")
                     for entry in scheduled:
@@ -694,9 +770,9 @@ with tab3:
                 m5.metric("Avg Confidence",  f"{avg_conf}%", help="Average AI confidence across scheduled tasks")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — AI Reliability
+# TAB 3 — AI Reliability
 # ══════════════════════════════════════════════════════════════════════════════
-with tab4:
+with tab3:
     import subprocess, sys
 
     # ── Unit test runner ──────────────────────────────────────────────────────

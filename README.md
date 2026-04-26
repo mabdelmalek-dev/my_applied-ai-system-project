@@ -28,12 +28,11 @@ flowchart TD
 
     subgraph UI ["🖥️ Streamlit UI  (app.py)"]
         B[Owner & Pets Tab\nprofile · window · pets]
-        C[Tasks Tab\nadd · edit · assign to pet]
-        D[Generate Schedule Tab]
+        C[Tasks Tab\nadd · edit tasks · 📅 Generate Schedule button]
         E[AI Reliability Tab]
     end
 
-    B --> C --> D
+    B --> C
 
     subgraph AGENT ["🤖 AI Agent  (agent.py)"]
         F[1 · Validator\nvalidate_tasks\ndrop empty / zero-duration]
@@ -44,7 +43,7 @@ flowchart TD
         F --> G --> H --> I --> J
     end
 
-    D --> F
+    C --> F
     J --> K
 
     subgraph OUTPUT ["📅 Schedule Output"]
@@ -248,3 +247,13 @@ Building PawPal+ taught me that AI reliability is not a binary property — it e
 The shift from a simple greedy planner (Module 1) to an explainable agentic pipeline with metrics, benchmarks, and a live test runner (this module) showed me how much of applied AI engineering is actually about *trust infrastructure* — the scaffolding that lets a user (or a future developer) verify that the system is working correctly and understand why it made each choice.
 
 The most transferable lesson: design for failure first. The unscheduled list, the decision log, and the benchmark failures are all places where the system surfaces its own limitations honestly. An AI that tells you what it couldn't do is far more useful — and far more trustworthy — than one that silently omits things.
+
+### AI Collaboration
+
+I used Claude (via Claude Code) throughout this project — for class scaffolding, debugging, UI layout, writing tests, and refining documentation.
+
+**One helpful suggestion:** When the schedule HTML table caused the whole page to scroll horizontally, the AI instantly identified the root cause and suggested wrapping the table in `<div style='overflow-x:auto'>`. This was exactly right and faster than I would have found it on my own.
+
+**One flawed suggestion:** When I asked to widen the content area, the AI switched to `layout="wide"` which made everything stretch full-screen — the opposite of what I wanted. It then suggested CSS `max-width` overrides that had no effect because Streamlit's centered layout ignores them without `!important`. It took several wrong suggestions before arriving at the correct fix. This was a good reminder that AI assistants can be confidently wrong, and the running app is always the final authority.
+
+**System limitations and future improvements:** The scheduler uses hardcoded priority weights and rigid time zones that don't adapt to individual routines. There is no rest-time buffer between tasks and no dependency ordering (e.g. medication after food). Future versions could learn weights from the owner's history, add a minimum gap rule, and support task dependencies.
