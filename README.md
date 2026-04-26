@@ -1,117 +1,26 @@
-# PawPal+ (Module 2 Project Extended)
+# PawPal+ — AI-Powered Pet Care Planner
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+> An intelligent daily scheduling assistant that builds optimized, explainable care plans for pet owners — with built-in confidence scoring, automated testing, and a live reliability dashboard.
 
-## Scenario
+---
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
+## Original Project (Modules 1–3)
 
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
+This project originated as **PawPal+** in Modules 1–3 of the AI110 course. The original goal was to build a Python class model (`Owner`, `Pet`, `Task`, `Scheduler`) that could manage pet care tasks, detect scheduling conflicts, and generate a basic daily plan using a priority-based greedy algorithm. The early system supported recurring tasks, same-pet overlap warnings, and a simple scoring function that combined priority, recency, and time-window fit. Module 3 extended it with a Streamlit UI that let users enter owner and pet information, add tasks, and view a generated plan with plain-English explanations.
 
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+---
 
-## What you will build
+## Title and Summary
 
-Your final app should:
+**PawPal+** is an AI-powered pet care scheduling app built with Python and Streamlit. A pet owner enters their available time window, their pets, and a list of care tasks (walks, feeding, medication, grooming, etc.) with priorities and preferred time-of-day hints. The AI agent validates, ranks, and time-slots every task — placing fixed appointments at exact times and flexibly fitting everything else around them — then explains every decision in plain English and rates its own confidence in each choice.
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+**Why it matters:** Pet care is repetitive and easy to forget, but existing reminder apps are passive. PawPal+ actively reasons about constraints and trade-offs, tells you *why* it made each choice, and proves its reliability through a live benchmark suite and 55 automated unit tests — all visible directly in the app.
 
-## Getting started
+---
 
-### Setup
+## Architecture Overview
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### Suggested workflow
-
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
-
-## Smarter Scheduling
-
-This project includes a lightweight scheduling engine with a few practical
-features to make daily planning useful and explainable:
-
-	combines priority, recency (how recently a task was performed), duration,
-	and whether a candidate time fits the task's earliest/latest constraints.
-	scheduler briefly considers the best immediate follow-up to avoid locally
-	poor choices.
-	time and to filter tasks by pet name and completion state.
-	and reports warnings (same-pet overlap, walker conflicts, or generic time
-	overlaps) instead of raising exceptions so the UI can surface warnings to
-	the user and allow manual resolution.
-
-These choices favor clarity, speed, and explainability over perfect
-optimality. The code is structured so the heuristic can be replaced with a
-solver-backed approach for larger or more constrained cases.
-
-## Features
-
-- Sorting by time: `Scheduler.sort_by_time()` and `DailySchedule.get_today_tasks()` ensure schedule entries are presented in chronological order and handle mixed `datetime`, `time`, and `HH:MM` string formats.
-- Conflict warnings: `Scheduler.detect_conflicts()` finds overlapping TaskInstances and reports lightweight warnings (`same-pet overlap`, `walker conflict`, `time overlap`) so the UI can surface actionable messages instead of crashing.
-- Daily recurrence: `Task.next_occurrence()` and `Task.mark_done()` automatically compute and (optionally) create the next `TaskInstance` for recurring tasks like `daily`, `weekly`, `weekdays`, and custom day lists.
-- Scoring-based greedy planner: `Scheduler.score_task_for_slot()` assigns a heuristic score combining priority, recency, duration penalty, and time-window fit; `Scheduler.generate_plan()` uses a greedy selection with a one-step lookahead.
-- Sorting & filtering helpers: Owner and scheduler utilities to filter tasks by pet name or completion and to present sorted schedules in the UI.
-- TaskInstance lifecycle helpers:`TaskInstance.postpone()`, `cancel()`, `mark_done()` and `complete(owner)` help manage scheduled instances and trigger recurrence when appropriate.
-- Robust datetime handling: The scheduler normalizes naive and timezone-aware datetimes to avoid comparison errors and correctly handle scheduling logic.
-- Automated tests: Pytest suite covers sorting, recurrence, and conflict detection (see `tests/test_scheduler.py`).
-
-## 📸 Demo
-
-To embed a screenshot of the final Streamlit app, add the image to your course images folder and use the following Markdown snippet in this README (replace `your_screenshot_name.png`):
-
-<a href="/course_images/ScreenShot.png" target="_blank"><img src='/course_images/ScreenShot.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
-
-Note: add your actual Streamlit screenshot to `course_images/ai110/ScreenShot.png` (or update the paths above to match your filename). If you'd like, upload the image here and I can add it to the repository for you.
-
-## Agent Mode Challeng 1
-
-Agent Mode was used throughout development to accelerate scaffolding, tests, and iterative implementation. In practice Agent Mode helped with:
-
-- Drafting dataclass scaffolds and method stubs for the domain model.
-- Generating unit-test templates for recurrence, sorting, and conflict detection.
-- Suggesting small helpers and refactors (datetime normalizers, sort helpers).
-
-All AI-generated suggestions were reviewed, adjusted for clarity, and validated with unit tests and the running Streamlit UI before committing.
-
-
-## Testing PawPal+
-
-Run the full automated test suite with:
-
-```bash
-python -m pytest
-```
-
-What the tests cover:
-
-- Sorting correctness: verifies schedule entries are returned in chronological order and handles mixed `datetime`, `time`, and `HH:MM` string representations.
-- Recurrence logic: verifies that marking a `daily` task done produces the next `TaskInstance` for the following day.
-- Conflict detection: ensures overlapping task instances are detected and reported as warnings (same-pet overlaps, walker/resource conflicts, generic time overlaps).
-- Integration scenarios: basic end-to-end checks for scheduling, filtering, and ordering behavior.
-
-Confidence Level: ★★★★☆ (4/5)
-
-Reason: the test suite covers the most common scheduling behaviors and edge cases relevant to the module (sorting, daily recurrence, and simple conflict detection). Further tests for DST transitions, complex recurrence patterns, and larger-scale performance would increase confidence to 5/5.
-
-## System Diagram
-
-The diagram below shows how data flows through PawPal+ from user input to a verified, explained schedule.
+The system is organized into four layers that data flows through in sequence:
 
 ```mermaid
 flowchart TD
@@ -171,16 +80,171 @@ flowchart TD
     P --> S
 ```
 
+**Layer 1 — Input (Streamlit UI):** The owner creates a profile (saved to `owners_db.json`), adds pets, and enters tasks with priority, duration, optional preferred time of day, and optional fixed start time.
+
+**Layer 2 — AI Agent (agent.py):** A four-step agentic pipeline: *validate* (drop malformed tasks) → *rank* (score by priority + preferred-time bonus) → *schedule* (place fixed tasks first, then greedily fill remaining slots with flexible tasks) → *explain* (generate a plain-English sentence per decision). A fifth step computes a **confidence score** (0–100%) for every placed task.
+
+**Layer 3 — Evaluator (metrics.py):** After scheduling, three metrics are computed: task coverage (fraction of tasks placed), time efficiency (fraction of the window used), and priority compliance (no high-priority task skipped while a lower one was kept). An overall score averages them.
+
+**Layer 4 — Testing:** 55 pytest unit tests verify every function in isolation. Six benchmark scenarios test realistic edge cases end-to-end. Both are runnable live inside the app's AI Reliability tab.
+
 ### Component summary
 
 | Component | File | Role |
 |---|---|---|
-| Streamlit UI | `app.py` | Input collection, schedule display, test runner |
-| Validator | `agent.py` | Drops tasks with no title or zero duration |
-| Ranker | `agent.py` | Scores tasks by priority + preferred-time bonus |
-| Scheduler | `agent.py` | Places fixed tasks first, then flexible by score |
-| Explainer | `agent.py` | Generates a plain-English reason for each decision |
-| Confidence Scorer | `app.py` | Rates AI certainty per decision (0–100%) |
-| Evaluator | `metrics.py` | Measures coverage, efficiency, and compliance |
-| Benchmarks | `metrics.py` | 6 predefined scenarios that must always pass |
-| Unit Tests | `tests/` | 55 pytest tests covering all core functions |
+| Streamlit UI | `app.py` | Input, display, and live test runner |
+| Validator | `agent.py` | Drops tasks missing a title or with zero duration |
+| Ranker | `agent.py` | Scores tasks: priority (high=100, medium=50, low=10) + preferred-time bonus |
+| Scheduler | `agent.py` | Places fixed tasks at exact times; fills gaps with flexible tasks by score |
+| Explainer | `agent.py` | One plain-English sentence per scheduled or rejected task |
+| Confidence Scorer | `app.py` | Per-decision certainty rating based on priority and time-zone fit |
+| Evaluator | `metrics.py` | Computes coverage, efficiency, compliance, and overall score |
+| Benchmarks | `metrics.py` | 6 named scenarios that must always pass |
+| Unit Tests | `tests/` | 55 pytest tests covering all core functions and edge cases |
+
+---
+
+## Setup Instructions
+
+**Requirements:** Python 3.9+
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/mabdelmalek-dev/my_applied-ai-system-project.git
+cd my_applied-ai-system-project
+
+# 2. Create and activate a virtual environment
+python -m venv .venv
+# macOS / Linux:
+source .venv/bin/activate
+# Windows:
+.venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Run the app
+streamlit run app.py
+
+# 5. (Optional) Run the full test suite
+python -m pytest tests/ -v
+```
+
+The app opens at **http://localhost:8501** in your browser. No API keys or external services are required — everything runs locally.
+
+---
+
+## Sample Interactions
+
+### Example 1 — Tight morning window with a fixed medication time
+
+**Input:**
+- Owner: Sarah | Window: 8:00 AM – 11:00 AM
+- Pet: Mochi (dog)
+- Tasks:
+  - Give medicine — 5 min, high priority, **fixed at 9:00 AM**
+  - Morning walk — 30 min, high priority, preferred: morning
+  - Brush fur — 15 min, low priority
+
+**AI Output:**
+
+| Time | Task | Confidence | Explanation |
+|---|---|---|---|
+| 8:00 – 8:30 AM | Morning walk | 95% | High priority, placed in preferred morning zone |
+| 9:00 – 9:05 AM | Give medicine 📌 | 100% | Fixed at 9:00 AM as specified by you |
+| 9:05 – 9:20 AM | Brush fur | 55% | Low priority, placed in next available slot |
+
+**Decision log:** All 3 tasks scheduled. Avg confidence: 83%.
+
+---
+
+### Example 2 — Two pets, priority conflict, afternoon preference
+
+**Input:**
+- Owner: James | Window: 12:00 PM – 6:00 PM
+- Pets: Luna (cat), Rex (dog)
+- Tasks:
+  - Feed Luna — 10 min, high priority, preferred: afternoon (Luna)
+  - Walk Rex — 45 min, medium priority (Rex)
+  - Playtime — 60 min, low priority (Rex)
+  - Groom Luna — 20 min, low priority, preferred: evening (Luna)
+
+**AI Output:**
+
+| Time | Pet | Task | Confidence |
+|---|---|---|---|
+| 12:00 – 12:10 PM | 🐈 Luna | Feed Luna | 90% |
+| 12:10 – 12:55 PM | 🐕 Rex | Walk Rex | 70% |
+| 12:55 – 1:55 PM | 🐕 Rex | Playtime | 55% |
+| 5:00 – 5:20 PM | 🐈 Luna | Groom Luna | 85% |
+
+Per-pet summary: Luna — 2 tasks (30 min) · Rex — 2 tasks (105 min)
+
+---
+
+### Example 3 — Overloaded window, AI drops lowest-priority task
+
+**Input:**
+- Owner: Alex | Window: 7:00 AM – 8:00 AM (60 min only)
+- Tasks: Walk (30 min, high), Feed (15 min, medium), Bath (45 min, low)
+
+**AI Output:**
+
+| Time | Task | Confidence |
+|---|---|---|
+| 7:00 – 7:30 AM | Walk | 85% |
+| 7:30 – 7:45 AM | Feed | 70% |
+
+**Not scheduled:** Bath — *"Not enough free time in the window (7:00 AM – 8:00 AM)."*
+
+**Metrics:** Task Coverage 67% · Priority Compliance 100% · Time Efficiency 75% · Overall 81%
+
+Priority compliance is 100% because the two dropped minutes went to the *lowest*-priority task — the AI never sacrificed a higher-priority task to fit a lower one.
+
+---
+
+## Design Decisions
+
+**Why a four-step agentic pipeline instead of one function?**
+Breaking the logic into validate → rank → schedule → explain makes each step independently testable and easy to trace. When something goes wrong you can see exactly which step produced a bad result rather than debugging a monolith.
+
+**Why save profiles to a JSON file instead of a database?**
+For a single-user local app, a flat JSON file (`owners_db.json`) is zero-infrastructure and survives restarts. The trade-off is that it won't scale to multiple simultaneous users, but that's not a requirement here — and switching to SQLite later would require only changing the two helper functions `_load_owners_db` / `_save_owner_to_db`.
+
+**Why fixed tasks first, then flexible?**
+Fixed tasks (e.g. medication at exactly 9:00 AM) are non-negotiable constraints. Placing them first lets the flexible scheduler see the real remaining gaps and avoids having to bump already-placed tasks. This mirrors how a human would plan a day.
+
+**Why a confidence score instead of just pass/fail?**
+A binary scheduled/not-scheduled answer hides important nuance. A task placed at 3 PM when the owner preferred morning is technically "scheduled" but the AI is less certain it's the best placement. Confidence scores make that uncertainty visible so the owner can decide whether to override.
+
+**Trade-offs made:**
+- The scheduler is greedy (not globally optimal). A task placed early may block a better combination later. This was a deliberate choice: greedy scheduling is fast, explainable, and good enough for daily pet care where tasks are short and windows are long.
+- Preferred-time hints are soft constraints — the AI tries to respect them but will place tasks outside their preferred zone rather than leave them unscheduled. Hard constraints (fixed times) are always respected.
+
+---
+
+## Testing Summary
+
+**What worked:**
+- All 55 unit tests pass on every run. The test suite covers the full pipeline: invalid task filtering, priority ranking, fixed-time placement, flexible slot-filling, overlap prevention, preferred-time zones, and all three performance metrics.
+- The 6 benchmark scenarios all pass, including edge cases: a single task that exactly fills the window, overlapping fixed tasks where the second must be rejected, and the empty task list.
+- Priority compliance was 100% across all benchmark scenarios — the AI never scheduled a low-priority task while a higher-priority one was left out.
+- Confidence scores behave as expected: fixed tasks always score 100%, high-priority tasks placed in their preferred zone score 90–95%, and tasks placed outside their preferred zone score lower.
+
+**What was harder than expected:**
+- Preferred-time placement with multiple tasks required two passes (zone-first, then any-slot fallback). Getting the zone overlap calculation right (`max(slot_start, zone_start)` to `min(slot_end, zone_end)`) took careful testing to avoid off-by-one errors.
+- The schedule table HTML being wider than the centered Streamlit layout caused unexpected horizontal page scrolling — solved by wrapping it in `overflow-x: auto`.
+
+**What I learned:**
+- Testing edge cases (empty lists, zero-duration tasks, overlapping fixed times) is more valuable than testing the happy path — most bugs live at the boundaries.
+- Making the AI explain its decisions in plain English is as important as making the decisions correctly. If users can't understand *why* the plan looks the way it does, they won't trust it.
+
+---
+
+## Reflection
+
+Building PawPal+ taught me that AI reliability is not a binary property — it exists on a spectrum that you measure, display, and improve over time. Adding confidence scores forced me to think carefully about *when* the AI is making a strong decision versus a guess, and that distinction turned out to be more useful than just showing the final schedule.
+
+The shift from a simple greedy planner (Module 1) to an explainable agentic pipeline with metrics, benchmarks, and a live test runner (this module) showed me how much of applied AI engineering is actually about *trust infrastructure* — the scaffolding that lets a user (or a future developer) verify that the system is working correctly and understand why it made each choice.
+
+The most transferable lesson: design for failure first. The unscheduled list, the decision log, and the benchmark failures are all places where the system surfaces its own limitations honestly. An AI that tells you what it couldn't do is far more useful — and far more trustworthy — than one that silently omits things.
