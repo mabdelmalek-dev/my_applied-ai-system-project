@@ -12,7 +12,7 @@ This project originated as **PawPal+** in Modules 2 of the AI110 course. The ori
 
 ## Title and Summary
 
-**PawPal+** is an AI-powered pet care scheduling app built with Python and Streamlit. A pet owner enters their available time window, their pets, and a list of care tasks (walks, feeding, medication, grooming, etc.) with priorities and preferred time-of-day hints. The AI agent validates, ranks, and time-slots every task — placing fixed appointments at exact times and flexibly fitting everything else around them — then explains every decision in plain English and rates its own confidence in each choice.
+**PawPal+** (Extended) is an AI-powered pet care scheduling app built with Python and Streamlit. A pet owner enters their available time window, their pets, and a list of care tasks (walks, feeding, medication, grooming, etc.) with priorities and preferred time-of-day hints. The AI agent validates, ranks, and time-slots every task — placing fixed appointments at exact times and flexibly fitting everything else around them — then explains every decision in plain English and rates its own confidence in each choice.
 
 **Why it matters:** Pet care is repetitive and easy to forget, but existing reminder apps are passive. PawPal+ actively reasons about constraints and trade-offs, tells you *why* it made each choice, and proves its reliability through a live benchmark suite and 55 automated unit tests — all visible directly in the app.
 
