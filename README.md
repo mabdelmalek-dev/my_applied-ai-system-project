@@ -4,6 +4,12 @@
 
 ---
 
+## What This Project Says About Me
+
+I don't just build things that work — I build things I can prove work. This project shows that I think about AI in layers: the logic that makes decisions, the metrics that measure them, and the explanations that make them trustworthy. I added confidence scores not because the rubric asked for them, but because I knew a schedule without uncertainty signals would give users false confidence. I wrote 55 tests not to hit a number, but because I wanted to sleep knowing the edge cases were covered. That mix of engineering discipline and user empathy is how I approach every AI system I build.
+
+---
+
 ## Original Project (Module 2)
 
 This project originated as **PawPal+** in Modules 2 of the AI110 course. The original goal was to build a Python class model (`Owner`, `Pet`, `Task`, `Scheduler`) that could manage pet care tasks, detect scheduling conflicts, and generate a basic daily plan using a priority-based greedy algorithm. The early system supported recurring tasks, same-pet overlap warnings, and a simple scoring function that combined priority, recency, and time-window fit. Module 2 extended it with a Streamlit UI that let users enter owner and pet information, add tasks, and view a generated plan with plain-English explanations.
