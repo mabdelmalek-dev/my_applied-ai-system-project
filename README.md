@@ -18,6 +18,14 @@ This project originated as **PawPal+** in Modules 2 of the AI110 course. The ori
 
 ---
 
+## Demo Walkthrough
+
+[![Watch the demo](https://cdn.loom.com/sessions/thumbnails/ed62ee967f4b4fae96a3f97773e6df4e-with-play.gif)](https://www.loom.com/share/ed62ee967f4b4fae96a3f97773e6df4e)
+
+> 🎬 [Watch on Loom](https://www.loom.com/share/ed62ee967f4b4fae96a3f97773e6df4e)
+
+---
+
 ## Demo Screenshots
 
 | Owner & Pets | Tasks | AI Reliability |
