@@ -6,7 +6,7 @@
 
 ## Original Project (Module 2)
 
-This project originated as **PawPal+** in Modules 2 of the AI110 course. The original goal was to build a Python class model (`Owner`, `Pet`, `Task`, `Scheduler`) that could manage pet care tasks, detect scheduling conflicts, and generate a basic daily plan using a priority-based greedy algorithm. The early system supported recurring tasks, same-pet overlap warnings, and a simple scoring function that combined priority, recency, and time-window fit. Module 3 extended it with a Streamlit UI that let users enter owner and pet information, add tasks, and view a generated plan with plain-English explanations.
+This project originated as **PawPal+** in Modules 2 of the AI110 course. The original goal was to build a Python class model (`Owner`, `Pet`, `Task`, `Scheduler`) that could manage pet care tasks, detect scheduling conflicts, and generate a basic daily plan using a priority-based greedy algorithm. The early system supported recurring tasks, same-pet overlap warnings, and a simple scoring function that combined priority, recency, and time-window fit. Module 2 extended it with a Streamlit UI that let users enter owner and pet information, add tasks, and view a generated plan with plain-English explanations.
 
 ---
 
@@ -23,6 +23,16 @@ This project originated as **PawPal+** in Modules 2 of the AI110 course. The ori
 | Owner & Pets | Tasks | AI Reliability |
 |---|---|---|
 | ![Owner & Pets tab](assets/screenshot_owner_pets.png) | ![Tasks tab](assets/screenshot_tasks.png) | ![AI Reliability tab](assets/screenshot_ai_reliability.png) |
+
+---
+
+## UML Class Diagram
+
+![UML Class Diagram](assets/uml_class_diagram.png)
+
+> Source: [`assets/uml_class_diagram.mmd`](assets/uml_class_diagram.mmd)
+
+The diagram shows all 10 domain classes (`Owner`, `Pet`, `Task`, `TaskInstance`, `Scheduler`, `DailySchedule`, `Constraints`, `Explanation`, `Notification`, `Storage`) alongside the three functional modules (`agent.py`, `knowledge_base.py`, `metrics.py`) and their relationships — composition, aggregation, dependency, and creation.
 
 ---
 

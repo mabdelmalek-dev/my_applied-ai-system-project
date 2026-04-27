@@ -1,0 +1,217 @@
+classDiagram
+    direction TB
+
+    class Owner {
+        +int id
+        +str name
+        +str email
+        +str phone
+        +str timezone
+        +List availability
+        +Dict preferences
+        +List~Pet~ pets
+        +set_availability(windows)
+        +add_pet(pet)
+        +remove_pet(pet_id)
+        +get_all_tasks() List~Task~
+        +get_tasks_filtered(pet_id, active) List~Task~
+        +notify(message, channel)
+        +is_available(dt_range) bool
+        +to_dict() Dict
+        +from_dict(data)$ Owner
+        +save_to_json(filepath)
+        +load_from_json(filepath)$ Owner
+    }
+
+    class Pet {
+        +int id
+        +str name
+        +str species
+        +str breed
+        +str sex
+        +int age
+        +List~Task~ tasks
+        +List default_routines
+        +List medical_needs
+        +add_task(task)
+        +remove_task(task_id)
+        +get_tasks() List~Task~
+        +get_routines() List
+        +update_profile(data)
+        +add_note(text)
+        +age_in_years() int
+    }
+
+    class Task {
+        +int id
+        +int pet_id
+        +str title
+        +str type
+        +int duration_minutes
+        +int priority
+        +str priority_level
+        +str recurrence_rule
+        +time earliest_time
+        +time latest_time
+        +bool requires_walker
+        +bool active
+        +create_or_update(fields)
+        +reschedule(new_rule)
+        +activate()
+        +deactivate()
+        +mark_done(instance_id)
+        +next_occurrence(after_date) date
+        +conflicts_with(other) bool
+        +to_instance(on_date) TaskInstance
+        +is_scheduled_on(on_date) bool
+    }
+
+    class TaskInstance {
+        +int id
+        +int task_id
+        +date date
+        +datetime scheduled_start
+        +datetime scheduled_end
+        +str status
+        +datetime actual_start
+        +datetime actual_end
+        +str notes
+        +mark_done(actual_start, actual_end)
+        +complete(owner) TaskInstance
+        +postpone(new_start)
+        +cancel(reason)
+        +assign_person(person_id)
+        +duration_minutes() int
+        +explain_reason() str
+    }
+
+    class Scheduler {
+        +date date
+        +int owner_id
+        +List~Task~ task_pool
+        +Constraints constraints
+        +Dict scoring_weights
+        +List time_slots
+        +generate_plan() DailySchedule
+        +detect_conflicts(schedule) List
+        +score_task_for_slot(task, slot) float
+        +next_available_slot(duration, start_after) Dict
+        +fit_tasks_into_availability() DailySchedule
+        +apply_constraints()
+        +explain_plan(schedule) Explanation
+        +sort_by_time(items, time_attr) List
+    }
+
+    class DailySchedule {
+        +int id
+        +date date
+        +int owner_id
+        +List~TaskInstance~ entries
+        +int total_duration_minutes
+        +str summary_text
+        +int explanation_id
+        +add_entry(task_instance)
+        +remove_entry(entry_id)
+        +get_today_tasks() List~TaskInstance~
+        +total_duration() int
+        +export_to_calendar(fmt)
+        +summarize() str
+    }
+
+    class Constraints {
+        +int id
+        +int owner_id
+        +int max_daily_duration
+        +List preferred_time_windows
+        +List blocked_times
+        +Dict priority_weights
+        +int minimum_gap_between_tasks
+        +is_allowed(task, slot) bool
+        +apply_owner_preferences(schedule)
+    }
+
+    class Explanation {
+        +int id
+        +int schedule_id
+        +Dict entries
+        +str summary_text
+        +str generated_by
+        +add_reason(task_instance_id, reason)
+        +summarize() str
+        +to_text() str
+        +to_json() Dict
+    }
+
+    class Notification {
+        +int id
+        +int task_instance_id
+        +datetime send_time
+        +str channel
+        +str message_template
+        +str sent_status
+        +int retry_count
+        +schedule_send()
+        +send_now()
+        +cancel()
+        +retry()
+        +mark_sent()
+    }
+
+    class Storage {
+        +str backend_type
+        +str connection
+        +datetime last_sync
+        +load_pets() List~Pet~
+        +save_pet(pet)
+        +load_tasks() List~Task~
+        +save_task(task)
+        +delete_task(task_id)
+        +load_schedule(on_date) DailySchedule
+        +save_owner(owner, filepath)
+        +load_owner(filepath) Owner
+        +backup()
+        +backup_owner_file(filepath) str
+    }
+
+    class AgentModule {
+        <<module agent.py>>
+        +validate_tasks(tasks) List
+        +score_task(task) int
+        +rank_tasks(tasks) List
+        +schedule_tasks(ranked, minutes) List
+        +explain_task(task) str
+        +explain_plan(schedule) List
+        +build_daily_schedule(ws, we, tasks)
+        +build_daily_plan(owner, pet, tasks, minutes)
+    }
+
+    class KnowledgeBase {
+        <<module knowledge_base.py>>
+        -List _KB
+        +retrieve_tip(task_title) str
+    }
+
+    class MetricsModule {
+        <<module metrics.py>>
+        +evaluate_plan(tasks, scheduled, minutes) Dict
+        +run_benchmarks() List
+    }
+
+    %% Relationships
+    Owner "1" *-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has
+    Task "1" ..> "0..*" TaskInstance : creates
+    Scheduler "1" o-- "0..*" Task : plans
+    Scheduler "1" o-- "0..1" Constraints : applies
+    Scheduler ..> DailySchedule : produces
+    Scheduler ..> Explanation : generates
+    DailySchedule "1" *-- "0..*" TaskInstance : contains
+    Explanation ..> DailySchedule : describes
+    Notification ..> TaskInstance : notifies
+    Storage ..> Owner : persists
+    Storage ..> Pet : persists
+    Storage ..> Task : persists
+    Storage ..> DailySchedule : persists
+    AgentModule ..> KnowledgeBase : retrieves tips
+    AgentModule ..> Task : processes
+    MetricsModule ..> DailySchedule : evaluates
